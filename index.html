@@ -1,0 +1,1618 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>我的旅遊手帳</title>
+
+<!-- PWA:可加入手機主畫面 -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1b2a4a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="旅遊手札">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" href="/icons/icon-192.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+<!--
+  ============================================================
+  這一版全部內容都能「在頁面上」直接改,不用碰程式碼:
+  - 打開網址(不帶參數)會先看到「手札列表」,可以開啟舊的、
+    或按「＋ 建立新的手札」開一份全新、獨立的手札
+  - 每份手札網址是 ?trip=一串id,存檔只會存到那一份,不會
+    互相覆蓋
+  - 進入某份手札後,按右上角「✏️ 編輯內容」進入編輯模式
+  - 編輯模式下,標題/行程/預算/清單文字都可以直接點擊輸入
+  - 每個清單(行程日/時段/項目/預算列/貼士/地圖連結/打包項目)
+    旁邊都會出現「＋ 新增」「🗑 刪除」按鈕
+  - 所有修改會自動呼叫 /api/trip 這個 Netlify Function 存到
+    Netlify Blobs;任何裝置打開同一個網址看到的都是最新內容,
+    想恢復成範例內容按「↺ 重設範例」
+  - DEFAULT_TRIP 這個物件是「初次開啟」時的預設內容,之後你
+    在畫面上編輯過的內容會蓋過它、直接存起來
+  ============================================================
+-->
+
+<style>
+  :root{
+    --cover:#1b2a4a;
+    --cover-2:#243a63;
+    --paper:#faf6ec;
+    --paper-2:#f2ead4;
+    --ink:#23201b;
+    --ink-soft:#5c564c;
+    --brass:#b6893c;
+    --brass-soft:#e6cd98;
+    --postmark:#b5432b;
+    --sage:#5f7d5b;
+    --line:#ddd0aa;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    font-family:'Noto Sans TC', sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:64px;
+  }
+  h1,h2,h3{font-family:'Noto Serif TC', serif; margin:0;}
+  .mono{font-family:'JetBrains Mono', monospace;}
+  a{color:inherit;}
+  button{font-family:inherit;}
+
+  /* ---------- editable field affordance ---------- */
+  .ef{border-radius:4px;}
+  body.edit-on .ef{
+    outline:1px dashed var(--brass);
+    outline-offset:2px;
+    cursor:text;
+    min-width:12px;
+    display:inline-block;
+  }
+  body.edit-on .ef:focus{
+    outline:2px solid var(--postmark);
+    background:rgba(181,67,43,0.06);
+  }
+  body.edit-on .ef.block{display:block;}
+  .del-btn{
+    display:none;
+    border:none; background:var(--postmark); color:#fff;
+    width:20px; height:20px; border-radius:50%;
+    font-size:12px; line-height:1; cursor:pointer;
+    flex:0 0 auto;
+  }
+  body.edit-on .del-btn{display:inline-flex; align-items:center; justify-content:center;}
+  .add-btn{
+    display:none;
+    border:1px dashed var(--brass); background:transparent; color:var(--brass);
+    border-radius:8px; padding:7px 12px; font-size:12.5px; font-weight:700;
+    cursor:pointer; margin-top:6px;
+  }
+  body.edit-on .add-btn{display:inline-block;}
+  .row-flex{display:flex; align-items:center; gap:6px;}
+
+  /* ---------- Cover ---------- */
+  .cover{
+    min-height:88vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    padding:48px 24px;
+    background:
+      radial-gradient(circle at 30% 20%, var(--cover-2), var(--cover) 65%);
+    color:var(--paper);
+    position:relative;
+    border-bottom:6px solid var(--brass);
+  }
+  .cover::before{
+    content:"";
+    position:absolute; inset:14px;
+    border:1px solid rgba(230,205,152,0.35);
+    border-radius:22px;
+    pointer-events:none;
+  }
+  .cover-emblem{
+    width:88px; height:88px; border-radius:50%;
+    border:2px solid var(--brass);
+    display:flex; align-items:center; justify-content:center;
+    font-size:38px;
+    margin-bottom:18px;
+    background:rgba(255,255,255,0.03);
+  }
+  .cover-eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    letter-spacing:3px;
+    font-size:12px;
+    color:var(--brass-soft);
+    text-transform:uppercase;
+    margin-bottom:10px;
+  }
+  .cover h1{
+    font-size:clamp(28px,7vw,44px);
+    font-weight:900;
+    line-height:1.25;
+    margin-bottom:10px;
+  }
+  .cover-sub{
+    color:rgba(250,246,236,0.75);
+    font-size:15px;
+    margin-bottom:26px;
+  }
+  .cover-dates{
+    font-family:'JetBrains Mono', monospace;
+    font-size:14px;
+    border:1px solid var(--brass);
+    border-radius:100px;
+    padding:8px 18px;
+    letter-spacing:1px;
+  }
+  .cover .ef{color:var(--paper); outline-color:var(--brass-soft) !important;}
+  .cover-datepick{margin-top:10px; font-size:11px;}
+  .cover-datepick input{
+    background:rgba(255,255,255,0.08); border:1px solid var(--brass); color:var(--paper);
+    border-radius:8px; padding:5px 8px; font-family:'JetBrains Mono',monospace; font-size:12px;
+  }
+  .countdown{
+    display:flex; gap:10px; margin-top:24px; flex-wrap:wrap; justify-content:center;
+  }
+  .countdown .num{
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(230,205,152,0.35);
+    border-radius:10px;
+    padding:10px 14px;
+    min-width:64px;
+  }
+  .countdown .num b{display:block; font-size:22px; font-family:'JetBrains Mono',monospace;}
+  .countdown .num span{font-size:11px; color:var(--brass-soft);}
+
+  /* ---------- Sticky nav ---------- */
+  .nav{
+    position:sticky; top:0; z-index:50;
+    display:flex; gap:6px; overflow-x:auto;
+    padding:10px 12px;
+    background:rgba(250,246,236,0.94);
+    backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line);
+    scrollbar-width:none;
+  }
+  .nav::-webkit-scrollbar{display:none;}
+  .nav a, .nav button.navlike{
+    flex:0 0 auto;
+    font-size:13px; font-weight:700;
+    padding:7px 13px;
+    border-radius:100px;
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    text-decoration:none;
+    white-space:nowrap;
+    cursor:pointer;
+  }
+  #editToggle.active{background:var(--postmark); color:#fff; border-color:var(--postmark);}
+
+  /* ---------- Sections ---------- */
+  section{padding:36px 18px; max-width:640px; margin:0 auto;}
+  .section-head{margin-bottom:18px; display:flex; justify-content:space-between; align-items:flex-end; gap:10px;}
+  .section-head .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px; letter-spacing:2px; text-transform:uppercase;
+    color:var(--postmark); font-weight:600; margin-bottom:4px;
+  }
+  .section-head h2{font-size:22px; font-weight:700;}
+  .reset-note{font-size:11px; color:var(--ink-soft); background:none; border:1px solid var(--line); border-radius:100px; padding:5px 10px; cursor:pointer; white-space:nowrap;}
+
+  /* ---------- Itinerary ---------- */
+  .day{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    margin-bottom:14px;
+    overflow:hidden;
+  }
+  .day summary{
+    list-style:none;
+    display:flex; align-items:center; gap:12px;
+    padding:14px 16px;
+    cursor:pointer;
+  }
+  .day summary::-webkit-details-marker{display:none;}
+  .stamp{
+    flex:0 0 auto;
+    width:46px; height:46px; border-radius:50%;
+    border:2px dashed var(--postmark);
+    color:var(--postmark);
+    display:flex; align-items:center; justify-content:center;
+    flex-direction:column; line-height:1;
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700; font-size:11px;
+  }
+  .stamp b{font-size:16px;}
+  .day-title{flex:1; min-width:0;}
+  .day-title .d-date{font-size:12px; color:var(--ink-soft); font-family:'JetBrains Mono',monospace;}
+  .day-title h3{font-size:16px; margin-top:2px;}
+  .chev{transition:transform .2s; color:var(--ink-soft); flex:0 0 auto;}
+  details[open] .chev{transform:rotate(180deg);}
+  .day-body{padding:0 16px 16px 16px;}
+  .day-section{
+    border-top:1px dashed var(--line);
+    padding:12px 0;
+  }
+  .day-section .time-label{
+    font-weight:700; font-size:13px; margin-bottom:6px; color:var(--sage);
+    display:flex; align-items:center; gap:8px;
+  }
+  .day-section ul{margin:0; padding-left:0; list-style:none;}
+  .day-section li{
+    font-size:14.5px; line-height:1.7; padding:2px 0;
+    display:flex; align-items:center; gap:8px;
+  }
+  .day-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+
+  /* ---------- Budget ---------- */
+  .budget-summary{
+    background:var(--cover);
+    color:var(--paper);
+    border-radius:var(--radius);
+    padding:20px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    margin-bottom:16px;
+    text-align:center;
+  }
+  .budget-summary .card{flex:1; min-width:90px; position:relative;}
+  .budget-summary .card span{display:block; font-size:11px; color:var(--brass-soft); margin-bottom:4px;}
+  .budget-summary .card b{font-family:'JetBrains Mono',monospace; font-size:17px;}
+  .budget-summary .del-btn{position:absolute; top:-8px; right:0;}
+  .ticket{
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    background:#fff; border:1px solid var(--line); border-radius:10px;
+    padding:12px 14px; margin-bottom:8px; font-size:14px;
+  }
+  .ticket .tleft{flex:1; min-width:0;}
+  .ticket .amt{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--postmark); flex:0 0 auto;}
+
+  /* ---------- Currency ---------- */
+  .converter{
+    background:#fff; border:1px solid var(--line); border-radius:var(--radius); padding:18px;
+  }
+  .conv-row{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .conv-row input{
+    flex:1; font-family:'JetBrains Mono',monospace; font-size:18px;
+    border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+    background:var(--paper-2); color:var(--ink);
+  }
+  .conv-row label{width:70px; font-size:13px; font-weight:700; color:var(--ink-soft);}
+  .conv-swap{text-align:center; color:var(--ink-soft); font-size:12px; margin:6px 0;}
+  .fx-settings{
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:14px;
+    padding-top:14px; border-top:1px dashed var(--line);
+  }
+  .fx-settings div{display:flex; flex-direction:column; gap:4px;}
+  .fx-settings label{font-size:11px; color:var(--ink-soft);}
+  .fx-settings input{
+    border:1px solid var(--line); border-radius:8px; padding:7px 8px; font-size:13px;
+    font-family:'JetBrains Mono',monospace; background:var(--paper-2);
+  }
+  .cheat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px;}
+  .cheat-item{
+    background:var(--paper-2); border-radius:10px; padding:10px 12px; font-size:13px; position:relative;
+  }
+  .cheat-item .lbl{color:var(--ink-soft); margin-bottom:3px; display:flex; justify-content:space-between; gap:4px;}
+  .cheat-item .val{font-family:'JetBrains Mono',monospace; font-weight:700;}
+
+  /* ---------- Expense tracker ---------- */
+  .progress-wrap{background:#fff; border:1px solid var(--line); border-radius:var(--radius); padding:18px; margin-bottom:16px;}
+  .progress-nums{display:flex; justify-content:space-between; font-size:13px; margin-bottom:8px;}
+  .progress-bar{height:10px; background:var(--paper-2); border-radius:100px; overflow:hidden;}
+  .progress-bar > div{height:100%; background:var(--sage); width:0%; transition:width .3s;}
+  .budget-edit{margin-top:10px; font-size:12px; color:var(--ink-soft); display:flex; gap:8px; align-items:center;}
+  .budget-edit input{width:110px; font-family:'JetBrains Mono',monospace; border:1px solid var(--line); border-radius:8px; padding:4px 8px;}
+  .budget-edit button{border:none;background:var(--sage);color:#fff;border-radius:8px;padding:5px 10px;cursor:pointer;}
+
+  .expense-form{
+    background:#fff; border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:16px;
+    display:grid; gap:10px;
+  }
+  .expense-form .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .expense-form select, .expense-form input{
+    border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:14px; font-family:inherit;
+    background:var(--paper-2);
+  }
+  .expense-form button{
+    background:var(--postmark); color:#fff; border:none; border-radius:100px;
+    padding:11px; font-weight:700; font-size:14px; cursor:pointer;
+  }
+  .expense-list{display:flex; flex-direction:column; gap:8px;}
+  .expense-row{
+    display:flex; align-items:center; gap:10px;
+    background:#fff; border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+  }
+  .expense-row .cat{font-size:20px;}
+  .expense-row .meta{flex:1; min-width:0;}
+  .expense-row .meta .note{font-size:13px; font-weight:600;}
+  .expense-row .meta .sub{font-size:11px; color:var(--ink-soft);}
+  .expense-row .amt{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--postmark); flex:0 0 auto;}
+  .expense-row button.del-x{background:none; border:none; color:var(--ink-soft); font-size:16px; cursor:pointer; padding:2px 4px;}
+  .empty-note{text-align:center; color:var(--ink-soft); font-size:13px; padding:20px;}
+
+  /* ---------- Split bill ---------- */
+  .family-pill{
+    display:inline-flex; align-items:center; gap:8px;
+    background:var(--paper-2); border:1px solid var(--line); border-radius:100px;
+    padding:7px 8px 7px 14px; font-size:14px; font-weight:600;
+  }
+  .family-pill button{
+    border:none; background:var(--postmark); color:#fff; width:18px; height:18px; border-radius:50%;
+    font-size:11px; cursor:pointer; line-height:1; flex:0 0 auto;
+  }
+  .family-row{
+    display:grid; grid-template-columns: 1.3fr 0.7fr 1fr 1fr; gap:8px; align-items:center;
+    background:#fff; border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px; margin-bottom:8px; font-size:13px;
+  }
+  .family-row.head{background:var(--paper-2); font-weight:700; font-size:11.5px; color:var(--ink-soft); border:none;}
+  .family-row.foot{background:var(--cover); color:var(--paper); font-weight:700; border:none;}
+  .family-row input{
+    border:1px solid var(--line); border-radius:8px; padding:6px 6px; font-size:13px;
+    font-family:'JetBrains Mono',monospace; width:100%; background:var(--paper-2);
+  }
+  .family-row .balance{font-family:'JetBrains Mono',monospace; font-weight:700;}
+  .family-row .balance.positive{color:var(--sage);}
+  .family-row .balance.negative{color:var(--postmark);}
+  .excel-btn{
+    display:inline-flex; align-items:center; gap:6px;
+    border:1px solid var(--sage); background:var(--sage); color:#fff;
+    border-radius:100px; padding:11px 18px; font-size:14px; font-weight:700;
+    cursor:pointer; margin-top:6px;
+  }
+
+  /* ---------- Packing ---------- */
+  .pack-grid{display:flex; flex-direction:column; gap:8px;}
+  .pack-item{
+    display:flex; align-items:center; gap:10px;
+    background:#fff; border:1px solid var(--line); border-radius:10px; padding:11px 14px;
+    font-size:14.5px;
+  }
+  .pack-item input[type=checkbox]{width:18px; height:18px; accent-color:var(--sage); flex:0 0 auto;}
+  .pack-item.checked .ptext{opacity:.5; text-decoration:line-through;}
+  .pack-item .ptext{flex:1; min-width:0;}
+
+  /* ---------- Tips ---------- */
+  .tip{
+    background:#fff; border:1px solid var(--line); border-radius:var(--radius);
+    margin-bottom:10px; overflow:hidden;
+  }
+  .tip summary{list-style:none; padding:13px 16px; cursor:pointer; font-weight:700; font-size:14.5px; display:flex; justify-content:space-between; align-items:center; gap:10px;}
+  .tip summary::-webkit-details-marker{display:none;}
+  .tip-body{padding:0 16px 14px; font-size:14px; color:var(--ink-soft); line-height:1.7; white-space:pre-wrap;}
+
+  /* ---------- Maps ---------- */
+  .map-links{display:flex; flex-wrap:wrap; gap:8px;}
+  .map-links .link-pill{
+    font-size:13px; text-decoration:none;
+    background:var(--paper-2); border:1px solid var(--line); border-radius:100px;
+    padding:8px 13px; display:flex; align-items:center; gap:6px;
+  }
+  .map-edit-row{
+    background:#fff; border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+    margin-bottom:8px; display:flex; flex-direction:column; gap:6px;
+  }
+  .map-edit-row input{border:1px solid var(--line); border-radius:8px; padding:7px 9px; font-size:13px; font-family:inherit;}
+  .map-edit-row .row-flex{justify-content:space-between;}
+
+  footer{
+    text-align:center; font-size:12px; color:var(--ink-soft);
+    padding:30px 20px 10px;
+  }
+  .print-only{display:none;}
+
+  /* ---------- Print / 匯出遊記 PDF ----------
+     只印出封面 + 逐日行程 + 小貼士 + 地圖連結,
+     編輯用的按鈕與財務相關區塊(預算/換匯/記帳/分帳/打包)都不印出,
+     財務資料另外用「匯出成 Excel」處理。 */
+  @media print{
+    .nav, #listScreen, footer .row-flex, #storageNote{ display:none !important; }
+    #budget, #fx, #tracker, #splitbill, #packing{ display:none !important; }
+    .del-btn, .add-btn, .day-actions{ display:none !important; }
+    body{ background:#fff; padding-bottom:0; }
+    .cover{ min-height:auto; padding:26px 14px; border-bottom:2px solid var(--brass); }
+    .cover-datepick{ display:none !important; }
+    .countdown{ display:none !important; }
+    details > *:not(summary){ display:block !important; }
+    summary .chev{ display:none !important; }
+    .day, .tip{ break-inside:avoid; }
+    section{ padding:18px 4px; }
+    .print-only{ display:block; text-align:center; font-size:11px; color:var(--ink-soft); margin-top:16px; }
+  }
+
+  /* ---------- Trip list screen ---------- */
+  .list-screen{min-height:100vh; padding:56px 20px 40px; max-width:600px; margin:0 auto;}
+  .list-hero{text-align:center; margin-bottom:26px;}
+  .list-hero .emblem{
+    width:72px; height:72px; border-radius:50%; margin:0 auto 14px;
+    border:2px solid var(--brass); display:flex; align-items:center; justify-content:center;
+    font-size:32px; background:var(--cover); color:var(--paper);
+  }
+  .list-hero h1{font-size:22px;}
+  .list-hero p{font-size:13px; color:var(--ink-soft); margin-top:6px;}
+  .big-btn{
+    display:block; width:100%; text-align:center;
+    background:var(--postmark); color:#fff; border:none; border-radius:100px;
+    padding:14px; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:24px;
+  }
+  .trip-card{
+    background:#fff; border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px; margin-bottom:12px; display:flex; align-items:center; gap:14px;
+  }
+  .trip-card .emoji{font-size:26px; flex:0 0 auto;}
+  .trip-card .info{flex:1; min-width:0;}
+  .trip-card .info h3{font-size:15.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .trip-card .info .sub{font-size:12px; color:var(--ink-soft); margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .trip-card .actions{display:flex; gap:6px; flex:0 0 auto;}
+  .trip-card .open-btn{border:none; background:var(--cover); color:#fff; border-radius:100px; padding:8px 14px; font-size:13px; cursor:pointer;}
+  .trip-card .del-btn2{border:1px solid var(--postmark); background:none; color:var(--postmark); border-radius:100px; width:32px; height:32px; font-size:13px; cursor:pointer;}
+  .list-empty{text-align:center; color:var(--ink-soft); font-size:13px; padding:30px 10px;}
+  .back-link{
+    font-size:13px; font-weight:700; padding:7px 13px; border-radius:100px;
+    background:var(--paper-2); border:1px solid var(--line); cursor:pointer;
+    flex:0 0 auto; white-space:nowrap;
+  }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<div id="listScreen" class="list-screen" style="display:none;">
+  <div class="list-hero">
+    <div class="emblem">🧳</div>
+    <h1>我的旅遊手札</h1>
+    <p>選一份繼續編輯,或建立一份新的、不同的手札</p>
+  </div>
+  <button class="big-btn" id="newTripBtn">＋ 建立新的手札</button>
+  <div id="tripListWrap"></div>
+</div>
+
+<div id="appScreen" style="display:none;">
+
+<div class="cover">
+  <div class="cover-emblem ef" contenteditable="false" data-path='["emoji"]'>🗻</div>
+  <div class="cover-eyebrow ef" contenteditable="false" data-path='["eyebrow"]'>TRAVEL JOURNAL</div>
+  <h1 class="ef" contenteditable="false" data-path='["title"]'>我的旅遊手帳</h1>
+  <div class="cover-sub ef" contenteditable="false" data-path='["subtitle"]'>副標題</div>
+  <div class="cover-dates mono ef" contenteditable="false" data-path='["dateRangeText"]'>2026.01.01 — 2026.01.05</div>
+  <div class="cover-datepick" id="datePickWrap" style="display:none;">
+    <label style="color:var(--brass-soft);">⏱ 倒數目標日期時間　</label>
+    <input type="datetime-local" id="countdownInput">
+  </div>
+  <div class="countdown" id="countdown"></div>
+</div>
+
+<nav class="nav">
+  <a href="#itinerary">🗓️ 行程</a>
+  <a href="#budget">💴 預算</a>
+  <a href="#fx">💱 換匯</a>
+  <a href="#tracker">💰 記帳</a>
+  <a href="#splitbill">👨‍👩‍👧‍👦 分帳</a>
+  <a href="#packing">🎒 打包</a>
+  <a href="#tips">💡 貼士</a>
+  <a href="#maps">🗺️ 地圖</a>
+  <button class="navlike" id="editToggle">✏️ 編輯內容</button>
+  <span class="navlike" id="syncStatus" style="cursor:default;">☁️ 讀取中…</span>
+  <button class="back-link" id="backToListBtn">📚 手札列表</button>
+</nav>
+
+<section id="itinerary">
+  <div class="section-head">
+    <div><div class="eyebrow">Day by day</div><h2>🗓️ 逐日行程</h2></div>
+  </div>
+  <div id="dayList"></div>
+  <button class="add-btn" id="addDayBtn">＋ 新增一天</button>
+</section>
+
+<section id="budget">
+  <div class="section-head">
+    <div><div class="eyebrow">Overview</div><h2>💴 團費 / 預算總覽</h2></div>
+  </div>
+  <div class="budget-summary" id="budgetSummary"></div>
+  <button class="add-btn" id="addSummaryBtn">＋ 新增總覽卡</button>
+  <div id="budgetItems" style="margin-top:14px;"></div>
+  <button class="add-btn" id="addBudgetItemBtn">＋ 新增費用項目</button>
+</section>
+
+<section id="fx">
+  <div class="section-head">
+    <div><div class="eyebrow">Currency</div><h2>💱 匯率換算</h2></div>
+  </div>
+  <div class="converter">
+    <div class="conv-row">
+      <label id="homeLabel">台幣</label>
+      <input id="homeInput" type="number" inputmode="decimal" placeholder="輸入金額">
+    </div>
+    <div class="conv-swap">⇅ 即時換算</div>
+    <div class="conv-row">
+      <label id="localLabel">當地幣</label>
+      <input id="localInput" type="number" inputmode="decimal" placeholder="輸入金額">
+    </div>
+    <div class="fx-settings">
+      <div><label>本國幣名稱</label><input id="fxHomeLabel" type="text"></div>
+      <div><label>當地幣名稱</label><input id="fxLocalLabel" type="text"></div>
+      <div><label>匯率(1本國=?當地)</label><input id="fxRate" type="number" step="0.01"></div>
+    </div>
+  </div>
+  <div class="cheat-grid" id="cheatGrid"></div>
+  <button class="add-btn" id="addCheatBtn">＋ 新增換算項目</button>
+</section>
+
+<section id="tracker">
+  <div class="section-head">
+    <div><div class="eyebrow">Expenses</div><h2>💰 記帳本</h2></div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-nums">
+      <span>已花費 <b class="mono" id="spentNum">0</b></span>
+      <span>剩餘 <b class="mono" id="remainNum">0</b></span>
+    </div>
+    <div class="progress-bar"><div id="progressFill"></div></div>
+    <div class="budget-edit">
+      總預算
+      <input id="budgetTotalInput" type="number" inputmode="decimal">
+      <button id="saveBudgetBtn">儲存</button>
+    </div>
+  </div>
+
+  <form class="expense-form" id="expenseForm">
+    <div class="row2">
+      <select id="expDay"></select>
+      <select id="expCat"></select>
+    </div>
+    <div class="row2">
+      <input id="expAmt" type="number" inputmode="decimal" placeholder="金額" required>
+      <input id="expNote" type="text" placeholder="備註(選填)">
+    </div>
+    <button type="submit">＋ 新增消費</button>
+  </form>
+
+  <div class="expense-list" id="expenseList"></div>
+</section>
+
+<section id="splitbill">
+  <div class="section-head">
+    <div><div class="eyebrow">Settlement</div><h2>👨‍👩‍👧‍👦 分帳結算</h2></div>
+  </div>
+
+  <div class="progress-wrap" style="margin-bottom:16px;">
+    <div class="progress-nums">
+      <span>公帳總支出 <b class="mono" id="sbTotalSpent">0</b></span>
+      <span>總人數 <b class="mono" id="sbTotalPeople">0</b></span>
+    </div>
+    <div style="font-size:12px;color:var(--ink-soft);margin-top:6px;">
+      公帳總支出取自上面「記帳本」所有紀錄的加總,依各成員人數比例分攤。
+    </div>
+  </div>
+
+  <div style="font-weight:700; font-size:14px; margin-bottom:10px;">成員(家庭/團體)</div>
+  <div class="row-flex" style="flex-wrap:wrap; gap:8px; margin-bottom:12px;" id="familyPills"></div>
+  <div class="row-flex" style="gap:8px; margin-bottom:20px;">
+    <input type="text" id="newFamilyName" placeholder="輸入名稱,例如:林家" style="flex:1; border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:14px;">
+    <button type="button" id="addFamilyBtn" style="border:none;background:var(--sage);color:#fff;border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;">加入成員</button>
+  </div>
+
+  <div style="font-weight:700; font-size:14px; margin-bottom:10px;">各家人數與訂金</div>
+  <div id="familyTable"></div>
+
+  <button type="button" class="excel-btn" id="exportExcelBtn">📊 匯出成 Excel</button>
+</section>
+
+<section id="packing">
+  <div class="section-head">
+    <div><div class="eyebrow">Checklist</div><h2>🎒 打包清單</h2></div>
+  </div>
+  <div class="pack-grid" id="packGrid"></div>
+  <button class="add-btn" id="addPackBtn">＋ 新增打包項目</button>
+</section>
+
+<section id="tips">
+  <div class="section-head">
+    <div><div class="eyebrow">Notes</div><h2>💡 小貼士</h2></div>
+  </div>
+  <div id="tipsList"></div>
+  <button class="add-btn" id="addTipBtn">＋ 新增貼士</button>
+</section>
+
+<section id="maps">
+  <div class="section-head">
+    <div><div class="eyebrow">Quick links</div><h2>🗺️ 地圖快連結</h2></div>
+  </div>
+  <div class="map-links" id="mapLinks"></div>
+  <button class="add-btn" id="addMapBtn">＋ 新增地圖連結</button>
+</section>
+
+<footer>
+  <div class="row-flex" style="justify-content:center; flex-wrap:wrap; gap:8px;">
+    <button class="reset-note" id="shareBtn">🔗 分享手札連結</button>
+    <button class="reset-note" id="refreshBtn">🔄 刷新最新內容</button>
+    <button class="reset-note" id="pdfBtn">🖨️ 匯出遊記 PDF</button>
+    <button class="reset-note" id="resetBtn">↺ 重設為範例內容</button>
+  </div>
+  <div style="margin-top:10px;" id="storageNote">按上方「✏️ 編輯內容」即可直接修改整本手帳,內容會自動同步儲存。</div>
+  <div class="print-only" id="printFooter"></div>
+</footer>
+
+</div><!-- /#appScreen -->
+
+<script>
+/* ============================================================
+   DEFAULT_TRIP —— 第一次開啟這個頁面時的範例內容
+   （之後在畫面上編輯的內容會存到瀏覽器,不會再讀這裡）
+   ============================================================ */
+const DEFAULT_TRIP = {
+  emoji: "🗻",
+  eyebrow: "TRAVEL JOURNAL",
+  title: "我的旅遊手帳",
+  subtitle: "在這裡填上你的旅程副標,例如：家族旅遊日記",
+  dateRangeText: "2026.01.01 (四) — 01.05 (一) · 5天4夜",
+  countdownTarget: "2026-01-01T00:00",
+
+  homeCurrency: { code:"TWD", label:"台幣", symbol:"NT$" },
+  localCurrency:{ code:"JPY", label:"當地幣", symbol:"¥" },
+  exchangeRate: 4.5,
+
+  budgetTotal: 20000,
+
+  days: [
+    {
+      id: 1, day: 1, date: "01/01 (四)", emoji: "🌙",
+      title: "抵達 · 入住", subtitle: "填入這天的主題副標",
+      sections: [
+        { id: 11, label: "☀️ 早上", items: ["✈️ 抵達機場", "🚕 前往飯店 Check-in"] },
+        { id: 12, label: "🌤️ 中午", items: ["🍜 午餐：填入餐廳名稱"] },
+        { id: 13, label: "🌅 下午", items: ["📍 景點一", "📍 景點二"] },
+        { id: 14, label: "🌙 晚上", items: ["🍽️ 晚餐：填入餐廳名稱", "🏨 住宿：填入飯店名稱"] }
+      ]
+    },
+    {
+      id: 2, day: 2, date: "01/02 (五)", emoji: "🏝️",
+      title: "第二天主題", subtitle: "副標題",
+      sections: [
+        { id: 21, label: "☀️ 早上", items: ["📍 行程項目"] },
+        { id: 22, label: "🌤️ 中午", items: ["🍜 午餐"] },
+        { id: 23, label: "🌅 下午", items: ["📍 行程項目"] },
+        { id: 24, label: "🌙 晚上", items: ["🍽️ 晚餐", "🏨 住宿"] }
+      ]
+    }
+  ],
+
+  budgetSummary: [
+    { id:1, label:"每人應繳", value:"NT$ 0" },
+    { id:2, label:"已確認費用", value:"NT$ 0" },
+    { id:3, label:"總天數", value:"5天4夜" }
+  ],
+  budgetItems: [
+    { id:1, label:"✈️ 機票(人均)", amount:"NT$ 0", note:"說明文字" },
+    { id:2, label:"🏨 住宿(人均)", amount:"NT$ 0", note:"說明文字" },
+    { id:3, label:"🚗 交通(人均)", amount:"NT$ 0", note:"說明文字" }
+  ],
+
+  cheatSheet: [
+    { id:1, label:"🍜 一餐", localAmount: 1000 },
+    { id:2, label:"☕ 咖啡一杯", localAmount: 500 },
+    { id:3, label:"🚕 短程計程車", localAmount: 800 },
+    { id:4, label:"🎟️ 景點門票", localAmount: 1500 }
+  ],
+
+  categories: [
+    { key:"food", label:"🍜 餐飲" },
+    { key:"ticket", label:"🎟️ 門票" },
+    { key:"transport", label:"🚗 交通" },
+    { key:"shopping", label:"🛍️ 購物" },
+    { key:"stay", label:"🏨 住宿" },
+    { key:"cafe", label:"☕ 咖啡甜點" },
+    { key:"other", label:"💊 其他" }
+  ],
+
+  packing: [
+    { id:1, text:"護照 / 證件", checked:false },
+    { id:2, text:"手機充電器", checked:false },
+    { id:3, text:"轉接頭", checked:false },
+    { id:4, text:"常備藥品", checked:false },
+    { id:5, text:"換洗衣物", checked:false }
+  ],
+
+  tips: [
+    { id:1, title:"💳 金錢 & 支付", body:"填入當地換匯、刷卡、ATM 相關提醒。" },
+    { id:2, title:"📱 通訊 & APP", body:"填入 SIM 卡、必備地圖 APP、翻譯軟體建議。" },
+    { id:3, title:"🌦️ 天氣提醒", body:"填入當地氣溫、降雨、穿搭建議。" }
+  ],
+
+  mapLinks: [
+    { id:1, label:"📍 景點一", url:"https://maps.google.com/?q=" },
+    { id:2, label:"🍜 餐廳一", url:"https://maps.google.com/?q=" }
+  ],
+
+  families: [
+    { id:1, name:"家庭一", count:2, deposit:0 },
+    { id:2, name:"家庭二", count:2, deposit:0 }
+  ]
+};
+
+/* ============================================================
+   狀態管理 + 存檔
+   ============================================================ */
+let TRIP = null;
+let expenses = [];
+let editMode = false;
+const uid = () => Date.now() + Math.floor(Math.random()*1000);
+
+function getPath(obj, path){ return path.reduce((o,k)=> (o===undefined||o===null) ? undefined : o[k], obj); }
+function setPath(obj, path, value){
+  let o = obj;
+  for (let i=0;i<path.length-1;i++){ o = o[path[i]]; }
+  o[path[path.length-1]] = value;
+}
+
+// 儲存層:呼叫 Netlify Function(/api/trip),資料實際存在 Netlify Blobs。
+// 每份手札有自己的 id(網址上的 ?trip=xxx),存檔只會存到那一份,
+// 彼此不會互相覆蓋;首頁(不帶 ?trip=)會顯示所有手札的列表。
+const API = '/api/trip';
+let CURRENT_TRIP_ID = null;
+
+function setSyncStatus(text){
+  const el = document.getElementById('syncStatus');
+  if (el) el.textContent = text;
+}
+function newId(){
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'trip-' + Date.now() + '-' + Math.floor(Math.random()*100000);
+}
+function getTripIdFromUrl(){
+  return new URLSearchParams(location.search).get('trip');
+}
+function goToTrip(id){
+  const url = new URL(location.href);
+  url.searchParams.set('trip', id);
+  history.pushState({}, '', url);
+  CURRENT_TRIP_ID = id;
+}
+function goToList(){
+  const url = new URL(location.href);
+  url.searchParams.delete('trip');
+  history.pushState({}, '', url);
+  CURRENT_TRIP_ID = null;
+}
+
+async function apiLoad(id){
+  try{
+    const res = await fetch(`${API}?id=${encodeURIComponent(id)}`);
+    if (!res.ok) throw new Error('load failed: ' + res.status);
+    return await res.json();
+  }catch(e){
+    console.error('讀取失敗', e);
+    return null;
+  }
+}
+async function apiSave(){
+  if (!CURRENT_TRIP_ID) return;
+  setSyncStatus('儲存中…');
+  try{
+    const res = await fetch(`${API}?id=${encodeURIComponent(CURRENT_TRIP_ID)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trip: TRIP, expenses: expenses })
+    });
+    if (!res.ok) throw new Error('save failed: ' + res.status);
+    setSyncStatus('☁️ 已同步');
+  }catch(e){
+    console.error('儲存失敗', e);
+    setSyncStatus('⚠️ 儲存失敗,檢查網路後重試');
+  }
+}
+async function apiList(){
+  try{
+    const res = await fetch(`${API}?list=1`);
+    if (!res.ok) throw new Error('list failed: ' + res.status);
+    return await res.json();
+  }catch(e){
+    console.error('讀取列表失敗', e);
+    return [];
+  }
+}
+async function apiDelete(id){
+  try{
+    await fetch(`${API}?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }catch(e){ console.error('刪除失敗', e); }
+}
+
+async function saveTrip(){ await apiSave(); }
+async function saveExpenses(){ await apiSave(); }
+
+async function loadAll(){
+  setSyncStatus('☁️ 讀取中…');
+  const data = await apiLoad(CURRENT_TRIP_ID);
+  if (data && data.trip){
+    TRIP = data.trip;
+    expenses = data.expenses || [];
+    setSyncStatus('☁️ 已同步');
+  } else {
+    TRIP = JSON.parse(JSON.stringify(DEFAULT_TRIP));
+    expenses = [];
+    setSyncStatus('🆕 新手札,開始編輯吧');
+  }
+  if (!Array.isArray(TRIP.families)) TRIP.families = []; // 舊手札沒有這個欄位時的相容處理
+  document.title = TRIP.title || '我的旅遊手札';
+  renderAll();
+}
+
+/* ---------- 畫面切換:列表 vs 手札內容 ---------- */
+function showListScreen(){
+  document.getElementById('listScreen').style.display = 'block';
+  document.getElementById('appScreen').style.display = 'none';
+}
+function showAppScreen(){
+  document.getElementById('listScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'block';
+}
+
+async function renderTripList(){
+  const wrap = document.getElementById('tripListWrap');
+  wrap.innerHTML = `<div class="list-empty">讀取中…</div>`;
+  const list = await apiList();
+  if (!list || list.length === 0){
+    wrap.innerHTML = `<div class="list-empty">還沒有任何手札,按上面「＋ 建立新的手札」開始寫第一份！</div>`;
+    return;
+  }
+  wrap.innerHTML = list.map(t => `
+    <div class="trip-card">
+      <div class="emoji">${t.emoji || '🧳'}</div>
+      <div class="info">
+        <h3>${t.title || '未命名手札'}</h3>
+        <div class="sub">${t.dateRangeText || ''}</div>
+      </div>
+      <div class="actions">
+        <button type="button" class="open-btn" data-id="${t.id}" data-action="open">開啟</button>
+        <button type="button" class="del-btn2" data-id="${t.id}" data-action="delete">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+document.getElementById('tripListWrap').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-action]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  if (btn.dataset.action === 'open'){
+    goToTrip(id);
+    showAppScreen();
+    await loadAll();
+    startPolling();
+  } else if (btn.dataset.action === 'delete'){
+    if (!confirm('確定要刪除這份手札嗎？這個動作無法復原。')) return;
+    await apiDelete(id);
+    renderTripList();
+  }
+});
+
+document.getElementById('newTripBtn').addEventListener('click', async () => {
+  const id = newId();
+  goToTrip(id);
+  TRIP = JSON.parse(JSON.stringify(DEFAULT_TRIP));
+  expenses = [];
+  showAppScreen();
+  document.title = TRIP.title;
+  renderAll();
+  await saveTrip(); // 立刻存一次,讓它出現在列表裡
+  startPolling();
+});
+
+document.getElementById('backToListBtn').addEventListener('click', () => {
+  stopPolling();
+  goToList();
+  showListScreen();
+  renderTripList();
+});
+
+window.addEventListener('popstate', boot);
+
+/* ---------- 背景同步:定期抓最新版本,讓朋友的編輯也能看到 ----------
+   只在「非編輯模式」且「目前沒有輸入框聚焦」時才會靜默更新畫面,
+   避免打斷正在輸入中的文字。 */
+let pollTimer = null;
+function stopPolling(){
+  if (pollTimer){ clearInterval(pollTimer); pollTimer = null; }
+}
+function startPolling(){
+  stopPolling();
+  pollTimer = setInterval(async () => {
+    if (!CURRENT_TRIP_ID || editMode) return;
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+    const data = await apiLoad(CURRENT_TRIP_ID);
+    if (data && data.trip){
+      TRIP = data.trip;
+      expenses = data.expenses || [];
+      if (!Array.isArray(TRIP.families)) TRIP.families = [];
+      document.title = TRIP.title || '我的旅遊手札';
+      renderAll();
+      setSyncStatus('☁️ 已同步');
+    }
+  }, 20000);
+}
+
+async function boot(){
+  const id = getTripIdFromUrl();
+  if (id){
+    CURRENT_TRIP_ID = id;
+    showAppScreen();
+    await loadAll();
+    startPolling();
+  } else {
+    CURRENT_TRIP_ID = null;
+    stopPolling();
+    showListScreen();
+    await renderTripList();
+  }
+}
+
+/* ---------- 分享 / 手動刷新 / 匯出 PDF ---------- */
+document.getElementById('shareBtn').addEventListener('click', async () => {
+  const url = location.href;
+  const shareData = { title: TRIP ? TRIP.title : '我的旅遊手札', text: '一起來看看這份旅遊手札吧！', url };
+  if (navigator.share){
+    try{ await navigator.share(shareData); } catch(e){ /* 使用者取消分享,不用處理 */ }
+    return;
+  }
+  try{
+    await navigator.clipboard.writeText(url);
+    alert('連結已複製！傳給朋友,他們打開就能一起看、一起編輯。');
+  }catch(e){
+    prompt('複製這個連結分享給朋友:', url);
+  }
+});
+
+document.getElementById('refreshBtn').addEventListener('click', async () => {
+  if (!CURRENT_TRIP_ID) return;
+  await loadAll();
+});
+
+document.getElementById('pdfBtn').addEventListener('click', () => {
+  const footer = document.getElementById('printFooter');
+  const today = new Date().toLocaleDateString('zh-Hant-TW');
+  footer.textContent = `${TRIP.title || ''} · 匯出日期 ${today} · ${location.href}`;
+  window.print();
+});
+
+/* ---------- Service worker(可加入手機主畫面) ---------- */
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((e) => console.error('Service worker 註冊失敗', e));
+  });
+}
+
+function renderAll(){
+  renderCover();
+  renderDays();
+  renderBudget();
+  renderFx();
+  renderExpenseUI();
+  renderSplitBill();
+  renderPacking();
+  renderTips();
+  renderMaps();
+}
+
+/* ---------- generic delegated edit handler ---------- */
+document.addEventListener('focusout', async (ev) => {
+  const el = ev.target;
+  if (!el.classList || !el.classList.contains('ef')) return;
+  const pathAttr = el.getAttribute('data-path');
+  if (!pathAttr) return;
+  const path = JSON.parse(pathAttr);
+  const val = el.innerText.trim();
+  setPath(TRIP, path, val);
+  await saveTrip();
+});
+
+/* ---------- edit mode toggle ---------- */
+document.getElementById('editToggle').addEventListener('click', () => {
+  editMode = !editMode;
+  document.body.classList.toggle('edit-on', editMode);
+  document.getElementById('editToggle').classList.toggle('active', editMode);
+  document.getElementById('editToggle').textContent = editMode ? '✓ 完成編輯' : '✏️ 編輯內容';
+  document.getElementById('datePickWrap').style.display = editMode ? 'block' : 'none';
+  document.querySelectorAll('.ef').forEach(el => el.setAttribute('contenteditable', editMode ? 'true' : 'false'));
+});
+
+document.getElementById('resetBtn').addEventListener('click', async () => {
+  if (!confirm('確定要重設為範例內容嗎？你目前編輯的內容會被清除。')) return;
+  TRIP = JSON.parse(JSON.stringify(DEFAULT_TRIP));
+  await saveTrip();
+  renderAll();
+});
+
+function makeEditable(el){
+  if (editMode) el.setAttribute('contenteditable','true');
+}
+
+/* ============================================================
+   Cover
+   ============================================================ */
+function renderCover(){
+  document.querySelector('.cover-emblem').textContent = TRIP.emoji;
+  document.querySelector('.cover-eyebrow').textContent = TRIP.eyebrow;
+  document.querySelector('.cover h1').textContent = TRIP.title;
+  document.querySelector('.cover-sub').textContent = TRIP.subtitle;
+  document.querySelector('.cover-dates').textContent = TRIP.dateRangeText;
+  document.querySelectorAll('.cover .ef').forEach(makeEditable);
+
+  const dateInput = document.getElementById('countdownInput');
+  dateInput.value = TRIP.countdownTarget;
+  dateInput.oninput = async () => {
+    TRIP.countdownTarget = dateInput.value;
+    await saveTrip();
+    renderCountdown();
+  };
+  renderCountdown();
+}
+
+let countdownTimer = null;
+function renderCountdown(){
+  const el = document.getElementById('countdown');
+  function render(){
+    const target = new Date(TRIP.countdownTarget).getTime();
+    const now = Date.now();
+    let diff = Math.max(0, (isNaN(target) ? now : target) - now);
+    const days = Math.floor(diff / 86400000);
+    const hours = Math.floor((diff % 86400000) / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    el.innerHTML = `
+      <div class="num"><b>${days}</b><span>天</span></div>
+      <div class="num"><b>${hours}</b><span>小時</span></div>
+      <div class="num"><b>${mins}</b><span>分</span></div>
+    `;
+  }
+  render();
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = setInterval(render, 60000);
+}
+
+/* ============================================================
+   Itinerary
+   ============================================================ */
+function renderDays(){
+  const wrap = document.getElementById('dayList');
+  wrap.innerHTML = TRIP.days.map((d,i) => `
+    <details class="day" ${i===0 ? 'open':''} data-day-idx="${i}">
+      <summary>
+        <div class="stamp"><span style="font-size:9px;">DAY</span><b class="ef" contenteditable="false" data-path='["days",${i},"day"]'>${d.day}</b></div>
+        <div class="day-title">
+          <div class="d-date mono ef" contenteditable="false" data-path='["days",${i},"date"]'>${d.date}</div>
+          <h3>
+            <span class="ef" contenteditable="false" data-path='["days",${i},"emoji"]'>${d.emoji}</span>
+            <span class="ef" contenteditable="false" data-path='["days",${i},"title"]'>${d.title}</span>
+            ・
+            <span class="ef" contenteditable="false" data-path='["days",${i},"subtitle"]'>${d.subtitle}</span>
+          </h3>
+        </div>
+        <button type="button" class="del-btn" data-action="del-day" data-day-idx="${i}">✕</button>
+        <div class="chev">▾</div>
+      </summary>
+      <div class="day-body">
+        ${d.sections.map((s,j) => `
+          <div class="day-section">
+            <div class="time-label">
+              <span class="ef" contenteditable="false" data-path='["days",${i},"sections",${j},"label"]'>${s.label}</span>
+              <button type="button" class="del-btn" data-action="del-section" data-day-idx="${i}" data-sec-idx="${j}">✕</button>
+            </div>
+            <ul>
+              ${s.items.map((it,k) => `
+                <li>
+                  <span class="ef block" contenteditable="false" data-path='["days",${i},"sections",${j},"items",${k}]' style="flex:1;">${it}</span>
+                  <button type="button" class="del-btn" data-action="del-item" data-day-idx="${i}" data-sec-idx="${j}" data-item-idx="${k}">✕</button>
+                </li>
+              `).join('')}
+            </ul>
+            <button type="button" class="add-btn" data-action="add-item" data-day-idx="${i}" data-sec-idx="${j}">＋ 新增項目</button>
+          </div>
+        `).join('')}
+        <div class="day-actions">
+          <button type="button" class="add-btn" data-action="add-section" data-day-idx="${i}">＋ 新增時段</button>
+        </div>
+      </div>
+    </details>
+  `).join('');
+
+  wrap.querySelectorAll('.ef').forEach(makeEditable);
+}
+
+document.getElementById('dayList').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-action]');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const di = btn.dataset.dayIdx !== undefined ? parseInt(btn.dataset.dayIdx) : null;
+  const si = btn.dataset.secIdx !== undefined ? parseInt(btn.dataset.secIdx) : null;
+  const ii = btn.dataset.itemIdx !== undefined ? parseInt(btn.dataset.itemIdx) : null;
+
+  if (action === 'del-day'){
+    if (TRIP.days.length <= 1){ alert('至少要保留一天行程'); return; }
+    if (!confirm('刪除這一天的行程？')) return;
+    TRIP.days.splice(di,1);
+  } else if (action === 'del-section'){
+    TRIP.days[di].sections.splice(si,1);
+  } else if (action === 'del-item'){
+    TRIP.days[di].sections[si].items.splice(ii,1);
+  } else if (action === 'add-item'){
+    TRIP.days[di].sections[si].items.push('📍 新增項目,點我編輯');
+  } else if (action === 'add-section'){
+    TRIP.days[di].sections.push({ id: uid(), label:'🕒 新時段', items:['新增項目,點我編輯'] });
+  }
+  await saveTrip();
+  renderDays();
+});
+
+document.getElementById('addDayBtn').addEventListener('click', async () => {
+  const n = TRIP.days.length + 1;
+  TRIP.days.push({
+    id: uid(), day:n, date:`第 ${n} 天`, emoji:'📍',
+    title:'新的一天', subtitle:'副標題',
+    sections: [{ id: uid(), label:'☀️ 早上', items:['新增項目,點我編輯'] }]
+  });
+  await saveTrip();
+  renderDays();
+});
+
+/* ============================================================
+   Budget
+   ============================================================ */
+function renderBudget(){
+  const sumWrap = document.getElementById('budgetSummary');
+  sumWrap.innerHTML = TRIP.budgetSummary.map((b,i) => `
+    <div class="card">
+      <button type="button" class="del-btn" data-action="del-summary" data-idx="${i}">✕</button>
+      <span class="ef" contenteditable="false" data-path='["budgetSummary",${i},"label"]'>${b.label}</span>
+      <b class="ef" contenteditable="false" data-path='["budgetSummary",${i},"value"]'>${b.value}</b>
+    </div>
+  `).join('');
+  sumWrap.querySelectorAll('.ef').forEach(makeEditable);
+
+  const itemWrap = document.getElementById('budgetItems');
+  itemWrap.innerHTML = TRIP.budgetItems.map((b,i) => `
+    <div class="ticket">
+      <div class="tleft">
+        <span class="ef" contenteditable="false" data-path='["budgetItems",${i},"label"]'>${b.label}</span>
+        <div style="font-size:11px;color:var(--ink-soft);margin-top:2px;">
+          <span class="ef" contenteditable="false" data-path='["budgetItems",${i},"note"]'>${b.note}</span>
+        </div>
+      </div>
+      <div class="amt ef" contenteditable="false" data-path='["budgetItems",${i},"amount"]'>${b.amount}</div>
+      <button type="button" class="del-btn" data-action="del-item" data-idx="${i}">✕</button>
+    </div>
+  `).join('');
+  itemWrap.querySelectorAll('.ef').forEach(makeEditable);
+}
+
+document.getElementById('budgetSummary').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-action="del-summary"]');
+  if (!btn) return;
+  TRIP.budgetSummary.splice(parseInt(btn.dataset.idx),1);
+  await saveTrip(); renderBudget();
+});
+document.getElementById('addSummaryBtn').addEventListener('click', async () => {
+  TRIP.budgetSummary.push({ id: uid(), label:'新項目', value:'NT$ 0' });
+  await saveTrip(); renderBudget();
+});
+document.getElementById('budgetItems').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-action="del-item"]');
+  if (!btn) return;
+  TRIP.budgetItems.splice(parseInt(btn.dataset.idx),1);
+  await saveTrip(); renderBudget();
+});
+document.getElementById('addBudgetItemBtn').addEventListener('click', async () => {
+  TRIP.budgetItems.push({ id: uid(), label:'📌 新費用項目', amount:'NT$ 0', note:'說明文字' });
+  await saveTrip(); renderBudget();
+});
+
+/* ============================================================
+   Currency
+   ============================================================ */
+function renderFx(){
+  const homeInput = document.getElementById('homeInput');
+  const localInput = document.getElementById('localInput');
+  document.getElementById('homeLabel').textContent = TRIP.homeCurrency.label;
+  document.getElementById('localLabel').textContent = TRIP.localCurrency.label;
+  document.getElementById('fxHomeLabel').value = TRIP.homeCurrency.label;
+  document.getElementById('fxLocalLabel').value = TRIP.localCurrency.label;
+  document.getElementById('fxRate').value = TRIP.exchangeRate;
+
+  homeInput.oninput = () => {
+    const v = parseFloat(homeInput.value);
+    localInput.value = isNaN(v) ? '' : Math.round(v * TRIP.exchangeRate);
+  };
+  localInput.oninput = () => {
+    const v = parseFloat(localInput.value);
+    homeInput.value = isNaN(v) ? '' : Math.round((v / TRIP.exchangeRate) * 100) / 100;
+  };
+
+  document.getElementById('fxHomeLabel').onchange = async (e) => {
+    TRIP.homeCurrency.label = e.target.value; await saveTrip(); renderFx();
+  };
+  document.getElementById('fxLocalLabel').onchange = async (e) => {
+    TRIP.localCurrency.label = e.target.value; await saveTrip(); renderFx();
+  };
+  document.getElementById('fxRate').onchange = async (e) => {
+    const v = parseFloat(e.target.value);
+    if (!isNaN(v) && v > 0) TRIP.exchangeRate = v;
+    await saveTrip(); renderFx();
+  };
+
+  renderCheatSheet();
+}
+
+function renderCheatSheet(){
+  document.getElementById('cheatGrid').innerHTML = TRIP.cheatSheet.map((c,i) => {
+    const home = Math.round((c.localAmount / TRIP.exchangeRate) * 10) / 10;
+    return `
+      <div class="cheat-item">
+        <div class="lbl">
+          <span class="ef" contenteditable="false" data-path='["cheatSheet",${i},"label"]'>${c.label}</span>
+          <button type="button" class="del-btn" data-action="del-cheat" data-idx="${i}">✕</button>
+        </div>
+        <div class="val">
+          ${TRIP.localCurrency.symbol}<span class="ef" contenteditable="false" data-path='["cheatSheet",${i},"localAmount"]'>${c.localAmount}</span>
+          ≈ ${TRIP.homeCurrency.symbol}${home}
+        </div>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('cheatGrid').querySelectorAll('.ef').forEach(makeEditable);
+}
+
+document.getElementById('cheatGrid').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-action="del-cheat"]');
+  if (!btn) return;
+  TRIP.cheatSheet.splice(parseInt(btn.dataset.idx),1);
+  await saveTrip(); renderCheatSheet();
+});
+document.getElementById('addCheatBtn').addEventListener('click', async () => {
+  TRIP.cheatSheet.push({ id: uid(), label:'📌 新項目', localAmount: 0 });
+  await saveTrip(); renderCheatSheet();
+});
+// cheatSheet localAmount is a number but stored via contenteditable text -> normalize after edit
+document.getElementById('cheatGrid').addEventListener('focusout', () => {
+  TRIP.cheatSheet.forEach(c => { c.localAmount = parseFloat(c.localAmount) || 0; });
+  renderCheatSheet();
+});
+
+/* ============================================================
+   Expense tracker
+   ============================================================ */
+function renderExpenseUI(){
+  const daySelect = document.getElementById('expDay');
+  const catSelect = document.getElementById('expCat');
+  daySelect.innerHTML = TRIP.days.map(d => `<option value="${d.id}">Day ${d.day} · ${d.title}</option>`).join('');
+  catSelect.innerHTML = TRIP.categories.map(c => `<option value="${c.key}">${c.label}</option>`).join('');
+  document.getElementById('budgetTotalInput').value = TRIP.budgetTotal;
+  renderExpenses();
+}
+
+document.getElementById('saveBudgetBtn').addEventListener('click', async () => {
+  const v = parseFloat(document.getElementById('budgetTotalInput').value);
+  if (isNaN(v)) return;
+  TRIP.budgetTotal = v;
+  await saveTrip();
+  renderExpenses();
+});
+
+document.getElementById('expenseForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const amt = parseFloat(document.getElementById('expAmt').value);
+  if (isNaN(amt)) return;
+  const dayId = document.getElementById('expDay').value;
+  const day = TRIP.days.find(d => String(d.id) === String(dayId));
+  expenses.push({
+    id: uid(),
+    dayLabel: day ? `Day ${day.day} · ${day.title}` : '未分類',
+    cat: document.getElementById('expCat').value,
+    amt: amt,
+    note: document.getElementById('expNote').value || ''
+  });
+  document.getElementById('expAmt').value = '';
+  document.getElementById('expNote').value = '';
+  await saveExpenses();
+  renderExpenses();
+});
+
+document.getElementById('expenseList').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-action="del-exp"]');
+  if (!btn) return;
+  expenses = expenses.filter(e => String(e.id) !== btn.dataset.id);
+  await saveExpenses();
+  renderExpenses();
+});
+
+function catLabel(key){
+  const c = TRIP.categories.find(c => c.key === key);
+  return c ? c.label : key;
+}
+
+function renderExpenses(){
+  const spent = expenses.reduce((s,e) => s + e.amt, 0);
+  const remain = TRIP.budgetTotal - spent;
+  document.getElementById('spentNum').textContent = `${TRIP.homeCurrency.symbol}${spent.toLocaleString()}`;
+  document.getElementById('remainNum').textContent = `${TRIP.homeCurrency.symbol}${remain.toLocaleString()}`;
+  const pct = TRIP.budgetTotal > 0 ? Math.min(100, (spent / TRIP.budgetTotal) * 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+
+  renderSplitBill();
+
+  const list = document.getElementById('expenseList');
+  if (expenses.length === 0){
+    list.innerHTML = `<div class="empty-note">還沒有消費紀錄,趕快記帳吧！</div>`;
+    return;
+  }
+  list.innerHTML = expenses.slice().reverse().map(e => {
+    const cat = TRIP.categories.find(c => c.key === e.cat);
+    const emoji = cat ? cat.label.split(' ')[0] : '💊';
+    return `
+      <div class="expense-row">
+        <div class="cat">${emoji}</div>
+        <div class="meta">
+          <div class="note">${e.note || catLabel(e.cat)}</div>
+          <div class="sub">${e.dayLabel} · ${catLabel(e.cat)}</div>
+        </div>
+        <div class="amt">${TRIP.homeCurrency.symbol}${e.amt.toLocaleString()}</div>
+        <button type="button" class="del-x" data-action="del-exp" data-id="${e.id}">✕</button>
+      </div>
+    `;
+  }).join('');
+}
+
+/* ============================================================
+   Split bill(分帳結算)
+   公帳總支出取自「記帳本」的 expenses 加總,依各成員人數比例分攤。
+   ============================================================ */
+function renderFamilyPills(){
+  const wrap = document.getElementById('familyPills');
+  if (!wrap) return;
+  if (TRIP.families.length === 0){
+    wrap.innerHTML = `<span style="font-size:13px;color:var(--ink-soft);">還沒有成員,先在下面加入吧</span>`;
+    return;
+  }
+  wrap.innerHTML = TRIP.families.map((f,i) => `
+    <span class="family-pill">${f.name}<button type="button" data-action="del-family" data-idx="${i}">✕</button></span>
+  `).join('');
+}
+
+function renderFamilyTable(){
+  const wrap = document.getElementById('familyTable');
+  if (!wrap) return;
+
+  const totalSpent = expenses.reduce((s,e) => s + e.amt, 0);
+  const totalPeople = TRIP.families.reduce((s,f) => s + (parseFloat(f.count) || 0), 0);
+  const totalDeposit = TRIP.families.reduce((s,f) => s + (parseFloat(f.deposit) || 0), 0);
+  const share = totalPeople > 0 ? totalSpent / totalPeople : 0;
+
+  document.getElementById('sbTotalSpent').textContent = `${TRIP.homeCurrency.symbol}${totalSpent.toLocaleString()}`;
+  document.getElementById('sbTotalPeople').textContent = totalPeople;
+
+  if (TRIP.families.length === 0){
+    wrap.innerHTML = `<div class="empty-note">還沒有成員,先在上面新增家庭/團體吧！</div>`;
+    return;
+  }
+
+  const head = `
+    <div class="family-row head">
+      <div>名稱</div><div>人數</div><div>已繳訂金</div><div>多退(+)/少補(-)</div>
+    </div>`;
+  const rows = TRIP.families.map((f,i) => {
+    const count = parseFloat(f.count) || 0;
+    const deposit = parseFloat(f.deposit) || 0;
+    const owed = share * count;
+    const balance = deposit - owed;
+    const cls = balance >= 0 ? 'positive' : 'negative';
+    const sign = balance >= 0 ? '+' : '−';
+    return `
+      <div class="family-row">
+        <div>${f.name}</div>
+        <input type="number" min="0" step="1" data-field="count" data-idx="${i}" value="${f.count}">
+        <input type="number" min="0" step="1" data-field="deposit" data-idx="${i}" value="${f.deposit}">
+        <div class="balance ${cls}">${sign}${TRIP.homeCurrency.symbol}${Math.round(Math.abs(balance)).toLocaleString()}</div>
+      </div>`;
+  }).join('');
+  const foot = `
+    <div class="family-row foot">
+      <div>合計</div><div>${totalPeople}</div><div>${TRIP.homeCurrency.symbol}${totalDeposit.toLocaleString()}</div><div></div>
+    </div>`;
+
+  wrap.innerHTML = head + rows + foot;
+}
+
+function renderSplitBill(){
+  renderFamilyPills();
+  renderFamilyTable();
+}
+
+document.getElementById('addFamilyBtn').addEventListener('click', async () => {
+  const input = document.getElementById('newFamilyName');
+  const name = input.value.trim();
+  if (!name) return;
+  TRIP.families.push({ id: uid(), name, count: 1, deposit: 0 });
+  input.value = '';
+  await saveTrip();
+  renderSplitBill();
+});
+document.getElementById('newFamilyName').addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter'){ ev.preventDefault(); document.getElementById('addFamilyBtn').click(); }
+});
+document.getElementById('familyPills').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-action="del-family"]');
+  if (!btn) return;
+  TRIP.families.splice(parseInt(btn.dataset.idx), 1);
+  await saveTrip();
+  renderSplitBill();
+});
+document.getElementById('familyTable').addEventListener('change', async (ev) => {
+  const inp = ev.target.closest('input[data-field]');
+  if (!inp) return;
+  const i = parseInt(inp.dataset.idx);
+  TRIP.families[i][inp.dataset.field] = parseFloat(inp.value) || 0;
+  await saveTrip();
+  renderFamilyTable();
+});
+
+function exportExcel(){
+  if (typeof XLSX === 'undefined'){
+    alert('匯出功能載入失敗,請檢查網路連線後重新整理頁面再試一次。');
+    return;
+  }
+  const totalSpent = expenses.reduce((s,e) => s + e.amt, 0);
+  const totalPeople = TRIP.families.reduce((s,f) => s + (parseFloat(f.count) || 0), 0);
+  const totalDeposit = TRIP.families.reduce((s,f) => s + (parseFloat(f.deposit) || 0), 0);
+  const share = totalPeople > 0 ? totalSpent / totalPeople : 0;
+
+  const familySheet = [
+    ['名稱', '人數', '已繳訂金', '應分攤金額', '多退(+)/少補(-)'],
+    ...TRIP.families.map(f => {
+      const count = parseFloat(f.count) || 0;
+      const deposit = parseFloat(f.deposit) || 0;
+      const owed = Math.round(share * count);
+      const balance = deposit - owed;
+      return [f.name, count, deposit, owed, balance];
+    }),
+    [],
+    ['合計', totalPeople, totalDeposit, Math.round(totalSpent), totalDeposit - Math.round(totalSpent)]
+  ];
+
+  const expenseSheet = [
+    ['天數', '分類', '金額', '備註'],
+    ...expenses.map(e => [e.dayLabel, catLabel(e.cat), e.amt, e.note])
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(familySheet), '分帳結算');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(expenseSheet), '消費紀錄');
+
+  const safeTitle = (TRIP.title || '旅遊手札').replace(/[\\/:*?"<>|]/g, '');
+  XLSX.writeFile(wb, `${safeTitle}-分帳.xlsx`);
+}
+
+document.getElementById('exportExcelBtn').addEventListener('click', exportExcel);
+
+/* ============================================================
+   Packing
+   ============================================================ */
+function renderPacking(){
+  const wrap = document.getElementById('packGrid');
+  wrap.innerHTML = TRIP.packing.map((item,i) => `
+    <label class="pack-item ${item.checked ? 'checked' : ''}">
+      <input type="checkbox" data-idx="${i}" ${item.checked ? 'checked' : ''}>
+      <span class="ptext ef" contenteditable="false" data-path='["packing",${i},"text"]'>${item.text}</span>
+      <button type="button" class="del-btn" data-action="del-pack" data-idx="${i}">✕</button>
+    </label>
+  `).join('');
+  wrap.querySelectorAll('.ef').forEach(makeEditable);
+  wrap.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', async () => {
+      TRIP.packing[parseInt(cb.dataset.idx)].checked = cb.checked;
+      await saveTrip();
+      renderPacking();
+    });
+  });
+}
+
+document.getElementById('packGrid').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-action="del-pack"]');
+  if (!btn) return;
+  TRIP.packing.splice(parseInt(btn.dataset.idx),1);
+  await saveTrip(); renderPacking();
+});
+document.getElementById('addPackBtn').addEventListener('click', async () => {
+  TRIP.packing.push({ id: uid(), text:'新增打包項目,點我編輯', checked:false });
+  await saveTrip(); renderPacking();
+});
+
+/* ============================================================
+   Tips
+   ============================================================ */
+function renderTips(){
+  const wrap = document.getElementById('tipsList');
+  wrap.innerHTML = TRIP.tips.map((t,i) => `
+    <details class="tip" ${i===0?'open':''}>
+      <summary>
+        <span class="ef" contenteditable="false" data-path='["tips",${i},"title"]'>${t.title}</span>
+        <span class="row-flex">
+          <button type="button" class="del-btn" data-action="del-tip" data-idx="${i}">✕</button>
+          <span class="chev">▾</span>
+        </span>
+      </summary>
+      <div class="tip-body ef" contenteditable="false" data-path='["tips",${i},"body"]'>${t.body}</div>
+    </details>
+  `).join('');
+  wrap.querySelectorAll('.ef').forEach(makeEditable);
+}
+
+document.getElementById('tipsList').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-action="del-tip"]');
+  if (!btn) return;
+  ev.preventDefault();
+  TRIP.tips.splice(parseInt(btn.dataset.idx),1);
+  await saveTrip(); renderTips();
+});
+document.getElementById('addTipBtn').addEventListener('click', async () => {
+  TRIP.tips.push({ id: uid(), title:'💡 新貼士標題', body:'內容說明,點我編輯' });
+  await saveTrip(); renderTips();
+});
+
+/* ============================================================
+   Map links
+   ============================================================ */
+function renderMaps(){
+  const wrap = document.getElementById('mapLinks');
+  if (!editMode){
+    wrap.innerHTML = TRIP.mapLinks.map(m => `
+      <a class="link-pill" href="${m.url}" target="_blank" rel="noopener">${m.label}</a>
+    `).join('');
+  } else {
+    wrap.innerHTML = TRIP.mapLinks.map((m,i) => `
+      <div class="map-edit-row">
+        <div class="row-flex">
+          <input type="text" value="${m.label.replace(/"/g,'&quot;')}" data-field="label" data-idx="${i}" placeholder="名稱" style="flex:1;">
+          <button type="button" class="del-btn" data-action="del-map" data-idx="${i}">✕</button>
+        </div>
+        <input type="text" value="${m.url.replace(/"/g,'&quot;')}" data-field="url" data-idx="${i}" placeholder="Google Maps 連結">
+      </div>
+    `).join('');
+  }
+}
+
+document.getElementById('mapLinks').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-action="del-map"]');
+  if (!btn) return;
+  TRIP.mapLinks.splice(parseInt(btn.dataset.idx),1);
+  await saveTrip(); renderMaps();
+});
+document.getElementById('mapLinks').addEventListener('change', async (ev) => {
+  const inp = ev.target.closest('input[data-field]');
+  if (!inp) return;
+  const i = parseInt(inp.dataset.idx);
+  TRIP.mapLinks[i][inp.dataset.field] = inp.value;
+  await saveTrip();
+});
+document.getElementById('addMapBtn').addEventListener('click', async () => {
+  TRIP.mapLinks.push({ id: uid(), label:'📍 新地點', url:'https://maps.google.com/?q=' });
+  await saveTrip(); renderMaps();
+});
+
+// re-render map links (and anything gated by editMode) whenever edit mode toggles
+boot();
+</script>
+</body>
+</html>
