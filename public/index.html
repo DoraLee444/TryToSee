@@ -349,6 +349,9 @@
     display:grid; gap:10px;
   }
   .expense-form .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .row-amt-cur{display:flex; gap:10px;}
+  .row-amt-cur input{flex:1.6; min-width:0;}
+  .row-amt-cur select{flex:1; min-width:0;}
   .expense-form select, .expense-form input{
     border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:14px; font-family:inherit;
     background:var(--paper-2);
@@ -369,7 +372,8 @@
   .expense-row .meta{flex:1; min-width:0;}
   .expense-row .meta .note{font-size:13px; font-weight:600;}
   .expense-row .meta .sub{font-size:11px; color:var(--ink-soft);}
-  .expense-row .amt{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--postmark); flex:0 0 auto;}
+  .expense-row .amt{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--postmark); flex:0 0 auto; text-align:right;}
+  .expense-row .amt-sub{font-size:10px; font-weight:400; color:var(--ink-soft);}
   .expense-row button.del-x{background:none; border:none; color:var(--ink-soft); font-size:16px; cursor:pointer; padding:2px 4px;}
   .empty-note{text-align:center; color:var(--ink-soft); font-size:13px; padding:20px;}
 
@@ -399,14 +403,14 @@
     font-size:11px; cursor:pointer; line-height:1; flex:0 0 auto;
   }
   .family-row{
-    display:grid; grid-template-columns: 1.3fr 0.7fr 1fr 1fr; gap:8px; align-items:center;
+    display:grid; grid-template-columns: 1.1fr 0.55fr 0.85fr 0.75fr 1fr; gap:6px; align-items:center;
     background:#fff; border:1px solid var(--line); border-radius:10px;
-    padding:10px 12px; margin-bottom:8px; font-size:13px;
+    padding:10px 10px; margin-bottom:8px; font-size:12.5px;
   }
-  .family-row.head{background:var(--paper-2); font-weight:700; font-size:11.5px; color:var(--ink-soft); border:none;}
+  .family-row.head{background:var(--paper-2); font-weight:700; font-size:11px; color:var(--ink-soft); border:none;}
   .family-row.foot{background:var(--cover); color:var(--paper); font-weight:700; border:none;}
-  .family-row input{
-    border:1px solid var(--line); border-radius:8px; padding:6px 6px; font-size:13px;
+  .family-row input, .family-row select{
+    border:1px solid var(--line); border-radius:8px; padding:6px 4px; font-size:12.5px;
     font-family:'JetBrains Mono',monospace; width:100%; background:var(--paper-2);
   }
   .family-row .balance{font-family:'JetBrains Mono',monospace; font-weight:700;}
@@ -671,10 +675,11 @@
           <select id="expDay"></select>
           <select id="expCat"></select>
         </div>
-        <div class="row2">
+        <div class="row-amt-cur">
           <input id="expAmt" type="number" inputmode="decimal" placeholder="金額" required>
-          <input id="expNote" type="text" placeholder="備註(選填)">
+          <select id="expCur"></select>
         </div>
+        <input id="expNote" type="text" placeholder="備註(選填)">
         <button type="submit">＋ 新增消費</button>
       </form>
 
@@ -860,8 +865,8 @@ const DEFAULT_TRIP = {
   ],
 
   families: [
-    { id:1, name:"家庭一", count:2, deposit:0 },
-    { id:2, name:"家庭二", count:2, deposit:0 }
+    { id:1, name:"家庭一", count:2, deposit:0, depositCurrency:"home" },
+    { id:2, name:"家庭二", count:2, deposit:0, depositCurrency:"home" }
   ]
 };
 
@@ -955,6 +960,11 @@ async function apiDelete(id){
 async function saveTrip(){ await apiSave(); }
 async function saveExpenses(){ await apiSave(); }
 
+function normalizeTrip(){
+  if (!Array.isArray(TRIP.families)) TRIP.families = [];
+  TRIP.families.forEach(f => { if (!f.depositCurrency) f.depositCurrency = 'home'; });
+}
+
 async function loadAll(){
   setSyncStatus('☁️ 讀取中…');
   const data = await apiLoad(CURRENT_TRIP_ID);
@@ -967,7 +977,7 @@ async function loadAll(){
     expenses = [];
     setSyncStatus('🆕 新手札,開始編輯吧');
   }
-  if (!Array.isArray(TRIP.families)) TRIP.families = []; // 舊手札沒有這個欄位時的相容處理
+  normalizeTrip();
   document.title = TRIP.title || '我的旅遊手札';
   renderAll();
 }
@@ -1119,7 +1129,7 @@ function startPolling(){
     if (data && data.trip){
       TRIP = data.trip;
       expenses = data.expenses || [];
-      if (!Array.isArray(TRIP.families)) TRIP.families = [];
+      normalizeTrip();
       document.title = TRIP.title || '我的旅遊手札';
       renderAll();
       setSyncStatus('☁️ 已同步');
@@ -1459,6 +1469,9 @@ function renderFx(){
     await saveTrip(); renderFx();
   };
 
+  renderExpCurrencyOptions();
+  if (typeof expenses !== 'undefined' && expenses) renderExpenses();
+
   renderCheatSheet();
 }
 
@@ -1506,6 +1519,27 @@ function cleanLabel(label){
   return stripped || label;
 }
 
+/* 把金額換算成「本國幣」為基準,方便加總/比較(exchangeRate 定義為 1 本國 = X 當地) */
+function toHomeAmount(amt, cur){
+  if (cur === 'local'){
+    return TRIP.exchangeRate > 0 ? amt / TRIP.exchangeRate : amt;
+  }
+  return amt;
+}
+function currencySymbolOf(cur){
+  return cur === 'local' ? TRIP.localCurrency.symbol : TRIP.homeCurrency.symbol;
+}
+
+function renderExpCurrencyOptions(){
+  const curSelect = document.getElementById('expCur');
+  if (!curSelect) return;
+  const prev = curSelect.value || 'home';
+  curSelect.innerHTML =
+    `<option value="home">${TRIP.homeCurrency.label}(${TRIP.homeCurrency.symbol})</option>` +
+    `<option value="local">${TRIP.localCurrency.label}(${TRIP.localCurrency.symbol})</option>`;
+  curSelect.value = prev;
+}
+
 function renderExpenseUI(){
   const daySelect = document.getElementById('expDay');
   const catSelect = document.getElementById('expCat');
@@ -1513,6 +1547,7 @@ function renderExpenseUI(){
     `<option value="pre">預支出(出發前)</option>` +
     TRIP.days.map(d => `<option value="${d.id}">Day ${d.day} · ${d.title}</option>`).join('');
   catSelect.innerHTML = TRIP.categories.map(c => `<option value="${c.key}">${cleanLabel(c.label)}</option>`).join('');
+  renderExpCurrencyOptions();
   document.getElementById('budgetTotalInput').value = TRIP.budgetTotal;
   renderExpenses();
 }
@@ -1542,6 +1577,7 @@ document.getElementById('expenseForm').addEventListener('submit', async (ev) => 
     dayLabel,
     cat: document.getElementById('expCat').value,
     amt: amt,
+    cur: document.getElementById('expCur').value || 'home',
     note: document.getElementById('expNote').value || ''
   });
   document.getElementById('expAmt').value = '';
@@ -1577,10 +1613,10 @@ function groupExpensesByDay(){
 }
 
 function renderExpenses(){
-  const spent = expenses.reduce((s,e) => s + e.amt, 0);
+  const spent = expenses.reduce((s,e) => s + toHomeAmount(e.amt, e.cur || 'home'), 0);
   const remain = TRIP.budgetTotal - spent;
-  document.getElementById('spentNum').textContent = `${TRIP.homeCurrency.symbol}${spent.toLocaleString()}`;
-  document.getElementById('remainNum').textContent = `${TRIP.homeCurrency.symbol}${remain.toLocaleString()}`;
+  document.getElementById('spentNum').textContent = `${TRIP.homeCurrency.symbol}${Math.round(spent).toLocaleString()}`;
+  document.getElementById('remainNum').textContent = `${TRIP.homeCurrency.symbol}${Math.round(remain).toLocaleString()}`;
   const pct = TRIP.budgetTotal > 0 ? Math.min(100, (spent / TRIP.budgetTotal) * 100) : 0;
   document.getElementById('progressFill').style.width = pct + '%';
 
@@ -1594,22 +1630,27 @@ function renderExpenses(){
 
   const groups = groupExpensesByDay();
   list.innerHTML = groups.map(g => {
-    const subtotal = g.items.reduce((s,e) => s + e.amt, 0);
-    const rows = g.items.slice().reverse().map(e => `
+    const subtotal = g.items.reduce((s,e) => s + toHomeAmount(e.amt, e.cur || 'home'), 0);
+    const rows = g.items.slice().reverse().map(e => {
+      const cur = e.cur || 'home';
+      const symbol = currencySymbolOf(cur);
+      const homeEquiv = cur === 'local' ? `(≈${TRIP.homeCurrency.symbol}${Math.round(toHomeAmount(e.amt, cur)).toLocaleString()})` : '';
+      return `
       <div class="expense-row">
         <div class="cat-badge">${catLabel(e.cat)}</div>
         <div class="meta">
           <div class="note">${e.note || catLabel(e.cat)}</div>
         </div>
-        <div class="amt">${TRIP.homeCurrency.symbol}${e.amt.toLocaleString()}</div>
+        <div class="amt">${symbol}${e.amt.toLocaleString()}<div class="amt-sub">${homeEquiv}</div></div>
         <button type="button" class="del-x" data-action="del-exp" data-id="${e.id}">✕</button>
       </div>
-    `).join('');
+    `;
+    }).join('');
     return `
       <details class="exp-day-group">
         <summary>
           <span>${g.label}</span>
-          <span class="exp-day-sub mono">${TRIP.homeCurrency.symbol}${subtotal.toLocaleString()} · ${g.items.length} 筆</span>
+          <span class="exp-day-sub mono">${TRIP.homeCurrency.symbol}${Math.round(subtotal).toLocaleString()} · ${g.items.length} 筆</span>
           <span class="chev">▾</span>
         </summary>
         <div class="exp-day-body">${rows}</div>
@@ -1634,16 +1675,21 @@ function renderFamilyPills(){
   `).join('');
 }
 
+function depositHomeAmount(f){
+  const deposit = parseFloat(f.deposit) || 0;
+  return toHomeAmount(deposit, f.depositCurrency || 'home');
+}
+
 function renderFamilyTable(){
   const wrap = document.getElementById('familyTable');
   if (!wrap) return;
 
-  const totalSpent = expenses.reduce((s,e) => s + e.amt, 0);
+  const totalSpent = expenses.reduce((s,e) => s + toHomeAmount(e.amt, e.cur || 'home'), 0);
   const totalPeople = TRIP.families.reduce((s,f) => s + (parseFloat(f.count) || 0), 0);
-  const totalDeposit = TRIP.families.reduce((s,f) => s + (parseFloat(f.deposit) || 0), 0);
+  const totalDeposit = TRIP.families.reduce((s,f) => s + depositHomeAmount(f), 0);
   const share = totalPeople > 0 ? totalSpent / totalPeople : 0;
 
-  document.getElementById('sbTotalSpent').textContent = `${TRIP.homeCurrency.symbol}${totalSpent.toLocaleString()}`;
+  document.getElementById('sbTotalSpent').textContent = `${TRIP.homeCurrency.symbol}${Math.round(totalSpent).toLocaleString()}`;
   document.getElementById('sbTotalPeople').textContent = totalPeople;
 
   if (TRIP.families.length === 0){
@@ -1653,13 +1699,13 @@ function renderFamilyTable(){
 
   const head = `
     <div class="family-row head">
-      <div>名稱</div><div>人數</div><div>已繳訂金</div><div>多退(+)/少補(-)</div>
+      <div>名稱</div><div>人數</div><div>訂金</div><div>幣別</div><div>多退(+)/少補(-)</div>
     </div>`;
   const rows = TRIP.families.map((f,i) => {
     const count = parseFloat(f.count) || 0;
-    const deposit = parseFloat(f.deposit) || 0;
     const owed = share * count;
-    const balance = deposit - owed;
+    const depositHome = depositHomeAmount(f);
+    const balance = depositHome - owed;
     const cls = balance >= 0 ? 'positive' : 'negative';
     const sign = balance >= 0 ? '+' : '−';
     return `
@@ -1667,12 +1713,16 @@ function renderFamilyTable(){
         <div>${f.name}</div>
         <input type="number" min="0" step="1" data-field="count" data-idx="${i}" value="${f.count}">
         <input type="number" min="0" step="1" data-field="deposit" data-idx="${i}" value="${f.deposit}">
+        <select data-field="depositCurrency" data-idx="${i}">
+          <option value="home" ${(f.depositCurrency||'home')==='home'?'selected':''}>${TRIP.homeCurrency.label}</option>
+          <option value="local" ${f.depositCurrency==='local'?'selected':''}>${TRIP.localCurrency.label}</option>
+        </select>
         <div class="balance ${cls}">${sign}${TRIP.homeCurrency.symbol}${Math.round(Math.abs(balance)).toLocaleString()}</div>
       </div>`;
   }).join('');
   const foot = `
     <div class="family-row foot">
-      <div>合計</div><div>${totalPeople}</div><div>${TRIP.homeCurrency.symbol}${totalDeposit.toLocaleString()}</div><div></div>
+      <div>合計</div><div>${totalPeople}</div><div>${TRIP.homeCurrency.symbol}${Math.round(totalDeposit).toLocaleString()}</div><div></div><div></div>
     </div>`;
 
   wrap.innerHTML = head + rows + foot;
@@ -1687,7 +1737,7 @@ document.getElementById('addFamilyBtn').addEventListener('click', async () => {
   const input = document.getElementById('newFamilyName');
   const name = input.value.trim();
   if (!name) return;
-  TRIP.families.push({ id: uid(), name, count: 1, deposit: 0 });
+  TRIP.families.push({ id: uid(), name, count: 1, deposit: 0, depositCurrency: 'home' });
   input.value = '';
   await saveTrip();
   renderSplitBill();
@@ -1703,10 +1753,14 @@ document.getElementById('familyPills').addEventListener('click', async (ev) => {
   renderSplitBill();
 });
 document.getElementById('familyTable').addEventListener('change', async (ev) => {
-  const inp = ev.target.closest('input[data-field]');
-  if (!inp) return;
-  const i = parseInt(inp.dataset.idx);
-  TRIP.families[i][inp.dataset.field] = parseFloat(inp.value) || 0;
+  const el = ev.target.closest('[data-field]');
+  if (!el) return;
+  const i = parseInt(el.dataset.idx);
+  if (el.dataset.field === 'depositCurrency'){
+    TRIP.families[i].depositCurrency = el.value;
+  } else {
+    TRIP.families[i][el.dataset.field] = parseFloat(el.value) || 0;
+  }
   await saveTrip();
   renderFamilyTable();
 });
@@ -1716,27 +1770,33 @@ function exportExcel(){
     alert('匯出功能載入失敗,請檢查網路連線後重新整理頁面再試一次。');
     return;
   }
-  const totalSpent = expenses.reduce((s,e) => s + e.amt, 0);
+  const totalSpent = expenses.reduce((s,e) => s + toHomeAmount(e.amt, e.cur || 'home'), 0);
   const totalPeople = TRIP.families.reduce((s,f) => s + (parseFloat(f.count) || 0), 0);
-  const totalDeposit = TRIP.families.reduce((s,f) => s + (parseFloat(f.deposit) || 0), 0);
+  const totalDeposit = TRIP.families.reduce((s,f) => s + depositHomeAmount(f), 0);
   const share = totalPeople > 0 ? totalSpent / totalPeople : 0;
 
   const familySheet = [
-    ['名稱', '人數', '已繳訂金', '應分攤金額', '多退(+)/少補(-)'],
+    ['名稱', '人數', '訂金金額', '訂金幣別', `訂金換算(${TRIP.homeCurrency.label})`, `應分攤(${TRIP.homeCurrency.label})`, `多退(+)/少補(-)(${TRIP.homeCurrency.label})`],
     ...TRIP.families.map(f => {
       const count = parseFloat(f.count) || 0;
       const deposit = parseFloat(f.deposit) || 0;
+      const curLabel = f.depositCurrency === 'local' ? TRIP.localCurrency.label : TRIP.homeCurrency.label;
+      const depositHome = Math.round(depositHomeAmount(f));
       const owed = Math.round(share * count);
-      const balance = deposit - owed;
-      return [f.name, count, deposit, owed, balance];
+      const balance = depositHome - owed;
+      return [f.name, count, deposit, curLabel, depositHome, owed, balance];
     }),
     [],
-    ['合計', totalPeople, totalDeposit, Math.round(totalSpent), totalDeposit - Math.round(totalSpent)]
+    ['合計', totalPeople, '', '', Math.round(totalDeposit), Math.round(totalSpent), Math.round(totalDeposit - totalSpent)]
   ];
 
   const expenseSheet = [
-    ['天數', '分類', '金額', '備註'],
-    ...expenses.map(e => [e.dayLabel, catLabel(e.cat), e.amt, e.note])
+    ['天數', '分類', '金額', '幣別', `換算(${TRIP.homeCurrency.label})`, '備註'],
+    ...expenses.map(e => {
+      const cur = e.cur || 'home';
+      const curLabel = cur === 'local' ? TRIP.localCurrency.label : TRIP.homeCurrency.label;
+      return [e.dayLabel, catLabel(e.cat), e.amt, curLabel, Math.round(toHomeAmount(e.amt, cur)), e.note];
+    })
   ];
 
   const wb = XLSX.utils.book_new();
