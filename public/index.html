@@ -198,6 +198,11 @@
     cursor:pointer;
   }
   #editToggle.active{background:var(--postmark); color:#fff; border-color:var(--postmark);}
+  .font-size-group button{
+    border:none; background:transparent; color:var(--ink-soft);
+    font-size:12px; font-weight:700; padding:4px 7px; border-radius:100px; cursor:pointer;
+  }
+  .font-size-group button.active{background:var(--cover); color:var(--paper);}
 
   /* ---------- Sections ---------- */
   section{padding:36px 18px; max-width:640px; margin:0 auto;}
@@ -209,6 +214,26 @@
   }
   .section-head h2{font-size:22px; font-weight:700;}
   .reset-note{font-size:11px; color:var(--ink-soft); background:none; border:1px solid var(--line); border-radius:100px; padding:5px 10px; cursor:pointer; white-space:nowrap;}
+
+  /* ---------- 每個區塊都可收合 ---------- */
+  details.section-collapse{ }
+  summary.section-summary{
+    list-style:none; cursor:pointer;
+    display:flex; justify-content:space-between; align-items:flex-end; gap:10px;
+    margin-bottom:18px;
+  }
+  summary.section-summary::-webkit-details-marker{display:none;}
+  summary.section-summary .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px; letter-spacing:2px; text-transform:uppercase;
+    color:var(--postmark); font-weight:600; margin-bottom:4px;
+  }
+  summary.section-summary h2{font-size:22px; font-weight:700;}
+  summary.section-summary .chev{
+    font-size:20px; color:var(--ink-soft); transition:transform .2s; flex:0 0 auto; padding-bottom:2px;
+  }
+  details.section-collapse[open] > summary.section-summary .chev{transform:rotate(180deg);}
+  details.section-collapse:not([open]) > summary.section-summary{margin-bottom:0;}
 
   /* ---------- Itinerary ---------- */
   .day{
@@ -332,18 +357,36 @@
     background:var(--postmark); color:#fff; border:none; border-radius:100px;
     padding:11px; font-weight:700; font-size:14px; cursor:pointer;
   }
-  .expense-list{display:flex; flex-direction:column; gap:8px;}
+  .expense-list{display:flex; flex-direction:column; gap:10px;}
   .expense-row{
     display:flex; align-items:center; gap:10px;
     background:#fff; border:1px solid var(--line); border-radius:10px; padding:10px 12px;
   }
-  .expense-row .cat{font-size:20px;}
+  .cat-badge{
+    font-size:11.5px; font-weight:700; color:var(--cover); background:var(--paper-2);
+    border:1px solid var(--line); border-radius:100px; padding:4px 9px; flex:0 0 auto; white-space:nowrap;
+  }
   .expense-row .meta{flex:1; min-width:0;}
   .expense-row .meta .note{font-size:13px; font-weight:600;}
   .expense-row .meta .sub{font-size:11px; color:var(--ink-soft);}
   .expense-row .amt{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--postmark); flex:0 0 auto;}
   .expense-row button.del-x{background:none; border:none; color:var(--ink-soft); font-size:16px; cursor:pointer; padding:2px 4px;}
   .empty-note{text-align:center; color:var(--ink-soft); font-size:13px; padding:20px;}
+
+  .exp-day-group{
+    background:var(--paper-2); border:1px solid var(--line); border-radius:12px;
+    margin-bottom:10px; overflow:hidden;
+  }
+  .exp-day-group summary{
+    list-style:none; cursor:pointer; padding:12px 14px;
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    font-weight:700; font-size:14px;
+  }
+  .exp-day-group summary::-webkit-details-marker{display:none;}
+  .exp-day-group summary .exp-day-sub{font-size:12px; color:var(--ink-soft); font-weight:400; flex:1; text-align:right;}
+  .exp-day-group summary .chev{font-weight:400; color:var(--ink-soft); transition:transform .2s; flex:0 0 auto;}
+  .exp-day-group[open] summary .chev{transform:rotate(180deg);}
+  .exp-day-body{padding:0 10px 10px; display:flex; flex-direction:column; gap:8px;}
 
   /* ---------- Split bill ---------- */
   .family-pill{
@@ -450,6 +493,25 @@
     background:var(--postmark); color:#fff; border:none; border-radius:100px;
     padding:14px; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:24px;
   }
+  .outline-btn{
+    display:block; width:100%; text-align:center;
+    background:#fff; color:var(--cover); border:1px solid var(--line); border-radius:100px;
+    padding:12px; font-size:14px; font-weight:700; cursor:pointer; margin-top:16px;
+  }
+  .emoji-group{margin-bottom:22px;}
+  .emoji-group h3{font-size:14px; margin-bottom:10px; color:var(--ink-soft);}
+  .emoji-grid{display:flex; flex-wrap:wrap; gap:8px;}
+  .emoji-grid button{
+    font-size:24px; line-height:1; width:48px; height:48px;
+    background:#fff; border:1px solid var(--line); border-radius:12px; cursor:pointer;
+  }
+  .emoji-grid button:active{background:var(--brass-soft); transform:scale(0.95);}
+  .copy-toast{
+    position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(20px);
+    background:var(--cover); color:var(--paper); padding:10px 18px; border-radius:100px;
+    font-size:14px; opacity:0; transition:opacity .2s, transform .2s; pointer-events:none; z-index:999;
+  }
+  .copy-toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
   .trip-card{
     background:#fff; border:1px solid var(--line); border-radius:var(--radius);
     padding:16px; margin-bottom:12px; display:flex; align-items:center; gap:14px;
@@ -480,6 +542,17 @@
   </div>
   <button class="big-btn" id="newTripBtn">＋ 建立新的手札</button>
   <div id="tripListWrap"></div>
+  <button class="outline-btn" id="openEmojiBtn">😀 常用 Emoji(點擊複製)</button>
+</div>
+
+<div id="emojiScreen" class="list-screen" style="display:none;">
+  <div class="list-hero">
+    <div class="emblem">😀</div>
+    <h1>常用 Emoji</h1>
+    <p>點一下就會複製到剪貼簿,直接貼到行程、地點、貼士裡</p>
+  </div>
+  <button class="outline-btn" id="backFromEmojiBtn" style="margin-bottom:20px;">← 返回手札列表</button>
+  <div id="emojiGroups"></div>
 </div>
 
 <div id="appScreen" style="display:none;">
@@ -505,136 +578,180 @@
   <a href="#splitbill">👨‍👩‍👧‍👦 分帳</a>
   <a href="#packing">🎒 打包</a>
   <a href="#tips">💡 貼士</a>
-  <a href="#maps">🗺️ 地圖</a>
+  <a href="#maps">🔗 相關連結</a>
   <button class="navlike" id="editToggle">✏️ 編輯內容</button>
+  <span class="navlike font-size-group" style="cursor:default; display:flex; gap:2px; padding:5px 6px;">
+    <button type="button" class="font-btn" data-scale="0.875">小</button>
+    <button type="button" class="font-btn" data-scale="1">中</button>
+    <button type="button" class="font-btn" data-scale="1.15">大</button>
+  </span>
   <span class="navlike" id="syncStatus" style="cursor:default;">☁️ 讀取中…</span>
   <button class="back-link" id="backToListBtn">📚 手札列表</button>
 </nav>
 
 <section id="itinerary">
-  <div class="section-head">
-    <div><div class="eyebrow">Day by day</div><h2>🗓️ 逐日行程</h2></div>
-  </div>
-  <div id="dayList"></div>
-  <button class="add-btn" id="addDayBtn">＋ 新增一天</button>
+  <details class="section-collapse" open>
+    <summary class="section-summary">
+      <div><div class="eyebrow">Day by day</div><h2>🗓️ 逐日行程</h2></div>
+      <span class="chev">▾</span>
+    </summary>
+    <div class="section-body">
+      <div id="dayList"></div>
+      <button class="add-btn" id="addDayBtn">＋ 新增一天</button>
+    </div>
+  </details>
 </section>
 
 <section id="budget">
-  <div class="section-head">
-    <div><div class="eyebrow">Overview</div><h2>💴 團費 / 預算總覽</h2></div>
-  </div>
-  <div class="budget-summary" id="budgetSummary"></div>
-  <button class="add-btn" id="addSummaryBtn">＋ 新增總覽卡</button>
-  <div id="budgetItems" style="margin-top:14px;"></div>
-  <button class="add-btn" id="addBudgetItemBtn">＋ 新增費用項目</button>
+  <details class="section-collapse" open>
+    <summary class="section-summary">
+      <div><div class="eyebrow">Overview</div><h2>💴 團費 / 預算總覽</h2></div>
+      <span class="chev">▾</span>
+    </summary>
+    <div class="section-body">
+      <div class="budget-summary" id="budgetSummary"></div>
+      <button class="add-btn" id="addSummaryBtn">＋ 新增總覽卡</button>
+      <div id="budgetItems" style="margin-top:14px;"></div>
+      <button class="add-btn" id="addBudgetItemBtn">＋ 新增費用項目</button>
+    </div>
+  </details>
 </section>
 
 <section id="fx">
-  <div class="section-head">
-    <div><div class="eyebrow">Currency</div><h2>💱 匯率換算</h2></div>
-  </div>
-  <div class="converter">
-    <div class="conv-row">
-      <label id="homeLabel">台幣</label>
-      <input id="homeInput" type="number" inputmode="decimal" placeholder="輸入金額">
+  <details class="section-collapse" open>
+    <summary class="section-summary">
+      <div><div class="eyebrow">Currency</div><h2>💱 匯率換算</h2></div>
+      <span class="chev">▾</span>
+    </summary>
+    <div class="section-body">
+      <div class="converter">
+        <div class="conv-row">
+          <label id="homeLabel">台幣</label>
+          <input id="homeInput" type="number" inputmode="decimal" placeholder="輸入金額">
+        </div>
+        <div class="conv-swap">⇅ 即時換算</div>
+        <div class="conv-row">
+          <label id="localLabel">當地幣</label>
+          <input id="localInput" type="number" inputmode="decimal" placeholder="輸入金額">
+        </div>
+        <div class="fx-settings">
+          <div><label>本國幣名稱</label><input id="fxHomeLabel" type="text"></div>
+          <div><label>當地幣名稱</label><input id="fxLocalLabel" type="text"></div>
+          <div><label>匯率(1本國=?當地)</label><input id="fxRate" type="number" step="0.01"></div>
+        </div>
+      </div>
+      <div class="cheat-grid" id="cheatGrid"></div>
+      <button class="add-btn" id="addCheatBtn">＋ 新增換算項目</button>
     </div>
-    <div class="conv-swap">⇅ 即時換算</div>
-    <div class="conv-row">
-      <label id="localLabel">當地幣</label>
-      <input id="localInput" type="number" inputmode="decimal" placeholder="輸入金額">
-    </div>
-    <div class="fx-settings">
-      <div><label>本國幣名稱</label><input id="fxHomeLabel" type="text"></div>
-      <div><label>當地幣名稱</label><input id="fxLocalLabel" type="text"></div>
-      <div><label>匯率(1本國=?當地)</label><input id="fxRate" type="number" step="0.01"></div>
-    </div>
-  </div>
-  <div class="cheat-grid" id="cheatGrid"></div>
-  <button class="add-btn" id="addCheatBtn">＋ 新增換算項目</button>
+  </details>
 </section>
 
 <section id="tracker">
-  <div class="section-head">
-    <div><div class="eyebrow">Expenses</div><h2>💰 記帳本</h2></div>
-  </div>
-  <div class="progress-wrap">
-    <div class="progress-nums">
-      <span>已花費 <b class="mono" id="spentNum">0</b></span>
-      <span>剩餘 <b class="mono" id="remainNum">0</b></span>
-    </div>
-    <div class="progress-bar"><div id="progressFill"></div></div>
-    <div class="budget-edit">
-      總預算
-      <input id="budgetTotalInput" type="number" inputmode="decimal">
-      <button id="saveBudgetBtn">儲存</button>
-    </div>
-  </div>
+  <details class="section-collapse" open>
+    <summary class="section-summary">
+      <div><div class="eyebrow">Expenses</div><h2>💰 記帳本</h2></div>
+      <span class="chev">▾</span>
+    </summary>
+    <div class="section-body">
+      <div class="progress-wrap">
+        <div class="progress-nums">
+          <span>已花費 <b class="mono" id="spentNum">0</b></span>
+          <span>剩餘 <b class="mono" id="remainNum">0</b></span>
+        </div>
+        <div class="progress-bar"><div id="progressFill"></div></div>
+        <div class="budget-edit">
+          總預算
+          <input id="budgetTotalInput" type="number" inputmode="decimal">
+          <button id="saveBudgetBtn">儲存</button>
+        </div>
+      </div>
 
-  <form class="expense-form" id="expenseForm">
-    <div class="row2">
-      <select id="expDay"></select>
-      <select id="expCat"></select>
-    </div>
-    <div class="row2">
-      <input id="expAmt" type="number" inputmode="decimal" placeholder="金額" required>
-      <input id="expNote" type="text" placeholder="備註(選填)">
-    </div>
-    <button type="submit">＋ 新增消費</button>
-  </form>
+      <form class="expense-form" id="expenseForm">
+        <div class="row2">
+          <select id="expDay"></select>
+          <select id="expCat"></select>
+        </div>
+        <div class="row2">
+          <input id="expAmt" type="number" inputmode="decimal" placeholder="金額" required>
+          <input id="expNote" type="text" placeholder="備註(選填)">
+        </div>
+        <button type="submit">＋ 新增消費</button>
+      </form>
 
-  <div class="expense-list" id="expenseList"></div>
+      <div class="expense-list" id="expenseList"></div>
+    </div>
+  </details>
 </section>
 
 <section id="splitbill">
-  <div class="section-head">
-    <div><div class="eyebrow">Settlement</div><h2>👨‍👩‍👧‍👦 分帳結算</h2></div>
-  </div>
+  <details class="section-collapse" open>
+    <summary class="section-summary">
+      <div><div class="eyebrow">Settlement</div><h2>👨‍👩‍👧‍👦 分帳結算</h2></div>
+      <span class="chev">▾</span>
+    </summary>
+    <div class="section-body">
+      <div class="progress-wrap" style="margin-bottom:16px;">
+        <div class="progress-nums">
+          <span>公帳總支出 <b class="mono" id="sbTotalSpent">0</b></span>
+          <span>總人數 <b class="mono" id="sbTotalPeople">0</b></span>
+        </div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:6px;">
+          公帳總支出取自上面「記帳本」所有紀錄的加總,依各成員人數比例分攤。
+        </div>
+      </div>
 
-  <div class="progress-wrap" style="margin-bottom:16px;">
-    <div class="progress-nums">
-      <span>公帳總支出 <b class="mono" id="sbTotalSpent">0</b></span>
-      <span>總人數 <b class="mono" id="sbTotalPeople">0</b></span>
+      <div style="font-weight:700; font-size:14px; margin-bottom:10px;">成員(家庭/團體)</div>
+      <div class="row-flex" style="flex-wrap:wrap; gap:8px; margin-bottom:12px;" id="familyPills"></div>
+      <div class="row-flex" style="gap:8px; margin-bottom:20px;">
+        <input type="text" id="newFamilyName" placeholder="輸入名稱,例如:林家" style="flex:1; border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:14px;">
+        <button type="button" id="addFamilyBtn" style="border:none;background:var(--sage);color:#fff;border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;">加入成員</button>
+      </div>
+
+      <div style="font-weight:700; font-size:14px; margin-bottom:10px;">各家人數與訂金</div>
+      <div id="familyTable"></div>
+
+      <button type="button" class="excel-btn" id="exportExcelBtn">📊 匯出成 Excel</button>
     </div>
-    <div style="font-size:12px;color:var(--ink-soft);margin-top:6px;">
-      公帳總支出取自上面「記帳本」所有紀錄的加總,依各成員人數比例分攤。
-    </div>
-  </div>
-
-  <div style="font-weight:700; font-size:14px; margin-bottom:10px;">成員(家庭/團體)</div>
-  <div class="row-flex" style="flex-wrap:wrap; gap:8px; margin-bottom:12px;" id="familyPills"></div>
-  <div class="row-flex" style="gap:8px; margin-bottom:20px;">
-    <input type="text" id="newFamilyName" placeholder="輸入名稱,例如:林家" style="flex:1; border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:14px;">
-    <button type="button" id="addFamilyBtn" style="border:none;background:var(--sage);color:#fff;border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;">加入成員</button>
-  </div>
-
-  <div style="font-weight:700; font-size:14px; margin-bottom:10px;">各家人數與訂金</div>
-  <div id="familyTable"></div>
-
-  <button type="button" class="excel-btn" id="exportExcelBtn">📊 匯出成 Excel</button>
+  </details>
 </section>
 
 <section id="packing">
-  <div class="section-head">
-    <div><div class="eyebrow">Checklist</div><h2>🎒 打包清單</h2></div>
-  </div>
-  <div class="pack-grid" id="packGrid"></div>
-  <button class="add-btn" id="addPackBtn">＋ 新增打包項目</button>
+  <details class="section-collapse" open>
+    <summary class="section-summary">
+      <div><div class="eyebrow">Checklist</div><h2>🎒 打包清單</h2></div>
+      <span class="chev">▾</span>
+    </summary>
+    <div class="section-body">
+      <div class="pack-grid" id="packGrid"></div>
+      <button class="add-btn" id="addPackBtn">＋ 新增打包項目</button>
+    </div>
+  </details>
 </section>
 
 <section id="tips">
-  <div class="section-head">
-    <div><div class="eyebrow">Notes</div><h2>💡 小貼士</h2></div>
-  </div>
-  <div id="tipsList"></div>
-  <button class="add-btn" id="addTipBtn">＋ 新增貼士</button>
+  <details class="section-collapse" open>
+    <summary class="section-summary">
+      <div><div class="eyebrow">Notes</div><h2>💡 小貼士</h2></div>
+      <span class="chev">▾</span>
+    </summary>
+    <div class="section-body">
+      <div id="tipsList"></div>
+      <button class="add-btn" id="addTipBtn">＋ 新增貼士</button>
+    </div>
+  </details>
 </section>
 
 <section id="maps">
-  <div class="section-head">
-    <div><div class="eyebrow">Quick links</div><h2>🗺️ 地圖快連結</h2></div>
-  </div>
-  <div class="map-links" id="mapLinks"></div>
-  <button class="add-btn" id="addMapBtn">＋ 新增地圖連結</button>
+  <details class="section-collapse" open>
+    <summary class="section-summary">
+      <div><div class="eyebrow">Related links</div><h2>🔗 相關連結</h2></div>
+      <span class="chev">▾</span>
+    </summary>
+    <div class="section-body">
+      <div class="map-links" id="mapLinks"></div>
+      <button class="add-btn" id="addMapBtn">＋ 新增連結</button>
+    </div>
+  </details>
 </section>
 
 <footer>
@@ -649,6 +766,9 @@
 </footer>
 
 </div><!-- /#appScreen -->
+
+<div class="copy-toast" id="copyToast"></div>
+
 
 <script>
 /* ============================================================
@@ -711,13 +831,13 @@ const DEFAULT_TRIP = {
   ],
 
   categories: [
-    { key:"food", label:"🍜 餐飲" },
-    { key:"ticket", label:"🎟️ 門票" },
-    { key:"transport", label:"🚗 交通" },
-    { key:"shopping", label:"🛍️ 購物" },
-    { key:"stay", label:"🏨 住宿" },
-    { key:"cafe", label:"☕ 咖啡甜點" },
-    { key:"other", label:"💊 其他" }
+    { key:"food", label:"餐飲" },
+    { key:"ticket", label:"門票" },
+    { key:"transport", label:"交通" },
+    { key:"shopping", label:"購物" },
+    { key:"stay", label:"住宿" },
+    { key:"cafe", label:"咖啡點心" },
+    { key:"other", label:"其他" }
   ],
 
   packing: [
@@ -852,15 +972,75 @@ async function loadAll(){
   renderAll();
 }
 
-/* ---------- 畫面切換:列表 vs 手札內容 ---------- */
+/* ---------- 畫面切換:列表 vs 手札內容 vs 常用 Emoji ---------- */
 function showListScreen(){
   document.getElementById('listScreen').style.display = 'block';
   document.getElementById('appScreen').style.display = 'none';
+  document.getElementById('emojiScreen').style.display = 'none';
 }
 function showAppScreen(){
   document.getElementById('listScreen').style.display = 'none';
   document.getElementById('appScreen').style.display = 'block';
+  document.getElementById('emojiScreen').style.display = 'none';
 }
+function showEmojiScreen(){
+  document.getElementById('listScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'none';
+  document.getElementById('emojiScreen').style.display = 'block';
+}
+
+/* ---------- 常用 Emoji(點擊複製) ---------- */
+const EMOJI_GROUPS = [
+  { title: '🚗 陸地交通', items: ['🚗','🚕','🚙','🚌','🚎','🚓','🚑','🚒','🚐','🚚','🚛','🚜','🏎️','🏍️','🛵','🚲','🛴','🛹','🚨','🚥','🚦','🛑','🚧','⛽','🚏','🛣️','🛤️','🚂','🚆','🚇','🚊','🚞'] },
+  { title: '✈️ 空中 / 海上交通', items: ['✈️','🛫','🛬','🛩️','🚁','🚀','🛸','🚤','⛵','🛥️','🚢','⚓','🛶','🚡','🚟','🚠'] },
+  { title: '🏙️ 建築 / 地標', items: ['🏠','🏡','🏢','🏬','🏨','🏦','🏛️','⛪','🕌','🕍','🛕','🗼','🗽','🏰','🏯','🏟️','🏗️','🏭','🏥','🏫'] },
+  { title: '🗺️ 自然 / 地理', items: ['🗺️','🧭','⛰️','🏔️','🌋','🗻','🏕️','🏖️','🏝️','🏜️','🏞️','🌄','🌅','🌆','🌇','🌉','🌊'] },
+  { title: '⛅ 天氣', items: ['☀️','🌤️','⛅','🌥️','☁️','🌦️','🌧️','⛈️','🌩️','🌨️','❄️','☃️','⛄','🌬️','💨','🌫️','🌈','☔'] },
+  { title: '🏨 住宿 / 隨身物品', items: ['🏨','🛏️','🛌','🧳','🔑','🗝️','🚿','🛁','🧴','🧻','📱','🔋','🔌','🪫'] },
+  { title: '🍜 飲食', items: ['🍜','🍚','🍣','🍱','🥟','🍢','🍡','🍧','🍨','🍦','☕','🍵','🍺','🍻','🥂','🍷','🍹','🧋','🍰','🍪','🍫'] },
+  { title: '🎉 活動 / 拍照', items: ['📸','📷','🎡','🎢','🎠','🏊','🚴','🥾','🎣','🛍️','🎭','🎪','⛳','🏄','🚣'] },
+  { title: '✅ 常用符號', items: ['✅','❌','⭐','❤️','💰','💴','💵','📍','📌','⏰','📅','📶'] }
+];
+
+function renderEmojiGroups(){
+  const wrap = document.getElementById('emojiGroups');
+  wrap.innerHTML = EMOJI_GROUPS.map(g => `
+    <div class="emoji-group">
+      <h3>${g.title}</h3>
+      <div class="emoji-grid">
+        ${g.items.map(e => `<button type="button" data-emoji="${e}">${e}</button>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function showCopyToast(text){
+  const el = document.getElementById('copyToast');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(showCopyToast._t);
+  showCopyToast._t = setTimeout(() => el.classList.remove('show'), 1200);
+}
+
+document.getElementById('emojiGroups').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-emoji]');
+  if (!btn) return;
+  const emoji = btn.dataset.emoji;
+  try{
+    await navigator.clipboard.writeText(emoji);
+    showCopyToast(`已複製 ${emoji}`);
+  }catch(e){
+    prompt('複製這個 emoji:', emoji);
+  }
+});
+
+document.getElementById('openEmojiBtn').addEventListener('click', () => {
+  renderEmojiGroups();
+  showEmojiScreen();
+});
+document.getElementById('backFromEmojiBtn').addEventListener('click', () => {
+  showListScreen();
+});
 
 async function renderTripList(){
   const wrap = document.getElementById('tripListWrap');
@@ -1020,6 +1200,32 @@ document.addEventListener('focusout', async (ev) => {
   setPath(TRIP, path, val);
   await saveTrip();
 });
+
+/* ---------- 貼上純化:複製貼上時只保留純文字,避免帶入來源網站的字體大小/樣式 ---------- */
+document.addEventListener('paste', (ev) => {
+  const el = ev.target;
+  if (!el.classList || !el.classList.contains('ef')) return;
+  ev.preventDefault();
+  const text = (ev.clipboardData || window.clipboardData).getData('text/plain');
+  document.execCommand('insertText', false, text);
+});
+
+/* ---------- 字體大小(小/中/大),存在這台裝置的瀏覽器裡,套用到整個頁面 ---------- */
+function applyTextScale(scale){
+  document.body.style.zoom = scale;
+  document.querySelectorAll('.font-btn').forEach(b => {
+    b.classList.toggle('active', parseFloat(b.dataset.scale) === scale);
+  });
+  try{ localStorage.setItem('textScale', String(scale)); }catch(e){}
+}
+document.querySelectorAll('.font-btn').forEach(b => {
+  b.addEventListener('click', () => applyTextScale(parseFloat(b.dataset.scale)));
+});
+(function initTextScale(){
+  let saved = 1;
+  try{ saved = parseFloat(localStorage.getItem('textScale')) || 1; }catch(e){}
+  applyTextScale(saved);
+})();
 
 /* ---------- edit mode toggle ---------- */
 document.getElementById('editToggle').addEventListener('click', () => {
@@ -1294,11 +1500,19 @@ document.getElementById('cheatGrid').addEventListener('focusout', () => {
 /* ============================================================
    Expense tracker
    ============================================================ */
+function cleanLabel(label){
+  if (!label) return label;
+  const stripped = label.replace(/^[\p{Extended_Pictographic}\u200d\uFE0F\s]+/u, '').trim();
+  return stripped || label;
+}
+
 function renderExpenseUI(){
   const daySelect = document.getElementById('expDay');
   const catSelect = document.getElementById('expCat');
-  daySelect.innerHTML = TRIP.days.map(d => `<option value="${d.id}">Day ${d.day} · ${d.title}</option>`).join('');
-  catSelect.innerHTML = TRIP.categories.map(c => `<option value="${c.key}">${c.label}</option>`).join('');
+  daySelect.innerHTML =
+    `<option value="pre">預支出(出發前)</option>` +
+    TRIP.days.map(d => `<option value="${d.id}">Day ${d.day} · ${d.title}</option>`).join('');
+  catSelect.innerHTML = TRIP.categories.map(c => `<option value="${c.key}">${cleanLabel(c.label)}</option>`).join('');
   document.getElementById('budgetTotalInput').value = TRIP.budgetTotal;
   renderExpenses();
 }
@@ -1316,10 +1530,16 @@ document.getElementById('expenseForm').addEventListener('submit', async (ev) => 
   const amt = parseFloat(document.getElementById('expAmt').value);
   if (isNaN(amt)) return;
   const dayId = document.getElementById('expDay').value;
-  const day = TRIP.days.find(d => String(d.id) === String(dayId));
+  let dayLabel;
+  if (dayId === 'pre'){
+    dayLabel = '預支出(出發前)';
+  } else {
+    const day = TRIP.days.find(d => String(d.id) === String(dayId));
+    dayLabel = day ? `Day ${day.day} · ${day.title}` : '未分類';
+  }
   expenses.push({
     id: uid(),
-    dayLabel: day ? `Day ${day.day} · ${day.title}` : '未分類',
+    dayLabel,
     cat: document.getElementById('expCat').value,
     amt: amt,
     note: document.getElementById('expNote').value || ''
@@ -1340,7 +1560,20 @@ document.getElementById('expenseList').addEventListener('click', async (ev) => {
 
 function catLabel(key){
   const c = TRIP.categories.find(c => c.key === key);
-  return c ? c.label : key;
+  return c ? cleanLabel(c.label) : key;
+}
+
+function groupExpensesByDay(){
+  const groups = new Map();
+  expenses.forEach(e => {
+    const key = e.dayLabel || '未分類';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(e);
+  });
+  const order = ['預支出(出發前)', ...TRIP.days.map(d => `Day ${d.day} · ${d.title}`)];
+  const orderedKeys = order.filter(k => groups.has(k));
+  Array.from(groups.keys()).forEach(k => { if (!orderedKeys.includes(k)) orderedKeys.push(k); });
+  return orderedKeys.map(k => ({ label: k, items: groups.get(k) }));
 }
 
 function renderExpenses(){
@@ -1358,19 +1591,29 @@ function renderExpenses(){
     list.innerHTML = `<div class="empty-note">還沒有消費紀錄,趕快記帳吧！</div>`;
     return;
   }
-  list.innerHTML = expenses.slice().reverse().map(e => {
-    const cat = TRIP.categories.find(c => c.key === e.cat);
-    const emoji = cat ? cat.label.split(' ')[0] : '💊';
-    return `
+
+  const groups = groupExpensesByDay();
+  list.innerHTML = groups.map(g => {
+    const subtotal = g.items.reduce((s,e) => s + e.amt, 0);
+    const rows = g.items.slice().reverse().map(e => `
       <div class="expense-row">
-        <div class="cat">${emoji}</div>
+        <div class="cat-badge">${catLabel(e.cat)}</div>
         <div class="meta">
           <div class="note">${e.note || catLabel(e.cat)}</div>
-          <div class="sub">${e.dayLabel} · ${catLabel(e.cat)}</div>
         </div>
         <div class="amt">${TRIP.homeCurrency.symbol}${e.amt.toLocaleString()}</div>
         <button type="button" class="del-x" data-action="del-exp" data-id="${e.id}">✕</button>
       </div>
+    `).join('');
+    return `
+      <details class="exp-day-group">
+        <summary>
+          <span>${g.label}</span>
+          <span class="exp-day-sub mono">${TRIP.homeCurrency.symbol}${subtotal.toLocaleString()} · ${g.items.length} 筆</span>
+          <span class="chev">▾</span>
+        </summary>
+        <div class="exp-day-body">${rows}</div>
+      </details>
     `;
   }).join('');
 }
