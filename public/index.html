@@ -1239,30 +1239,15 @@ document.getElementById('backToListBtn').addEventListener('click', () => {
 
 window.addEventListener('popstate', boot);
 
-/* ---------- 背景同步:定期抓最新版本,讓朋友的編輯也能看到 ----------
-   只在「非編輯模式」且「目前沒有輸入框聚焦」時才會靜默更新畫面,
-   避免打斷正在輸入中的文字。 */
-let pollTimer = null;
-function stopPolling(){
-  if (pollTimer){ clearInterval(pollTimer); pollTimer = null; }
-}
-function startPolling(){
-  stopPolling();
-  pollTimer = setInterval(async () => {
-    if (!CURRENT_TRIP_ID || editMode) return;
-    const active = document.activeElement;
-    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
-    const data = await apiLoad(CURRENT_TRIP_ID);
-    if (data && data.trip){
-      TRIP = data.trip;
-      expenses = data.expenses || [];
-      normalizeTrip();
-      document.title = TRIP.title || '我的旅遊手札';
-      renderAll();
-      setSyncStatus('☁️ 已同步');
-    }
-  }, 20000);
-}
+/* ---------- 背景同步已關閉 ----------
+   之前這裡會每 20 秒自動打一次 API 檢查有沒有新版本,
+   但這樣即使頁面只是開著放著不動也會持續消耗 Netlify 用量額度。
+   現在改成只靠按「🔄 刷新最新內容」才會去抓資料(refreshBtn 的
+   click 事件已經會呼叫 loadAll() 重新讀取)。
+   保留這兩個函式名稱是為了不用一一修改其他呼叫的地方,
+   但它們現在什麼事都不做。 */
+function stopPolling(){ /* 不再需要,保留空函式避免其他呼叫出錯 */ }
+function startPolling(){ /* 不再需要,保留空函式避免其他呼叫出錯 */ }
 
 async function boot(){
   const id = getTripIdFromUrl();
