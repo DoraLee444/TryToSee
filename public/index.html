@@ -512,8 +512,10 @@
   .emoji-grid button{
     font-size:24px; line-height:1; width:48px; height:48px;
     background:#fff; border:1px solid var(--line); border-radius:12px; cursor:pointer;
+    font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Segoe UI Symbol",sans-serif;
   }
   .emoji-grid button:active{background:var(--brass-soft); transform:scale(0.95);}
+  .emoji-grid button.del-mode{border-color:var(--postmark); background:rgba(181,67,43,0.08);}
   .emoji-add-row{display:flex; gap:8px; margin-top:10px;}
   .emoji-add-row input{
     flex:1; border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:16px;
@@ -521,12 +523,6 @@
   .emoji-add-row button{
     border:none; background:var(--sage); color:#fff; border-radius:8px; padding:10px 16px;
     font-size:14px; font-weight:700; cursor:pointer; white-space:nowrap;
-  }
-  .emoji-tile-wrap{position:relative; display:inline-block;}
-  .emoji-del-btn{
-    position:absolute; top:-6px; right:-6px; width:19px; height:19px; border-radius:50%;
-    background:var(--postmark); color:#fff; border:none; font-size:10px; line-height:1; cursor:pointer;
-    padding:0; z-index:2;
   }
   .copy-toast{
     position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(20px);
@@ -571,7 +567,7 @@
   <div class="list-hero">
     <div class="emblem">😀</div>
     <h1>常用 Emoji</h1>
-    <p>點一下複製;按「編輯清單」可以新增/刪除,大家打開都是同一份</p>
+    <p>點一下複製;編輯模式下點方塊(會變紅色)即可刪除該項目</p>
   </div>
   <button class="outline-btn" id="backFromEmojiBtn">← 返回手札列表</button>
   <button class="outline-btn" id="emojiEditToggle">✏️ 編輯清單(新增/刪除)</button>
@@ -1022,15 +1018,15 @@ function showEmojiScreen(){
 
 /* ---------- 常用 Emoji(雲端共用,點擊複製 / 編輯模式可新增刪除) ---------- */
 const DEFAULT_EMOJI_GROUPS = [
-  { title: '🚗 陸地交通', items: ['🚗','🚕','🚙','🚌','🚎','🚓','🚑','🚒','🚐','🚚','🚛','🚜','🏎️','🏍️','🛵','🚲','🛴','🛹','🚨','🚥','🚦','🛑','🚧','⛽','🚏','🛣️','🛤️','🚂','🚆','🚇','🚊','🚞'] },
-  { title: '✈️ 空中 / 海上交通', items: ['✈️','🛫','🛬','🛩️','🚁','🚀','🛸','🚤','⛵','🛥️','🚢','⚓','🛶','🚡','🚟','🚠'] },
-  { title: '🏙️ 建築 / 地標', items: ['🏠','🏡','🏢','🏬','🏨','🏦','🏛️','⛪','🕌','🕍','🛕','🗼','🗽','🏰','🏯','🏟️','🏗️','🏭','🏥','🏫'] },
-  { title: '🗺️ 自然 / 地理', items: ['🗺️','🧭','⛰️','🏔️','🌋','🗻','🏕️','🏖️','🏝️','🏜️','🏞️','🌄','🌅','🌆','🌇','🌉','🌊'] },
-  { title: '⛅ 天氣', items: ['☀️','🌤️','⛅','🌥️','☁️','🌦️','🌧️','⛈️','🌩️','🌨️','❄️','☃️','⛄','🌬️','💨','🌫️','🌈','☔'] },
-  { title: '🏨 住宿 / 隨身物品', items: ['🏨','🛏️','🛌','🧳','🔑','🗝️','🚿','🛁','🧴','🧻','📱','🔋','🔌','🪫'] },
-  { title: '🍜 飲食', items: ['🍜','🍚','🍣','🍱','🥟','🍢','🍡','🍧','🍨','🍦','☕','🍵','🍺','🍻','🥂','🍷','🍹','🧋','🍰','🍪','🍫'] },
-  { title: '🎉 活動 / 拍照', items: ['📸','📷','🎡','🎢','🎠','🏊','🚴','🥾','🎣','🛍️','🎭','🎪','⛳','🏄','🚣'] },
-  { title: '✅ 常用符號', items: ['✅','❌','⭐','❤️','💰','💴','💵','📍','📌','⏰','📅','📶'] }
+  { title: '\u{1F697} \u{9678}\u{5730}\u{4EA4}\u{901A}', items: ['\u{1F697}','\u{1F695}','\u{1F699}','\u{1F68C}','\u{1F68E}','\u{1F693}','\u{1F691}','\u{1F692}','\u{1F690}','\u{1F69A}','\u{1F69B}','\u{1F69C}','\u{1F3CE}\u{FE0F}','\u{1F3CD}\u{FE0F}','\u{1F6F5}','\u{1F6B2}','\u{1F6F4}','\u{1F6F9}','\u{1F6A8}','\u{1F6A5}','\u{1F6A6}','\u{1F6D1}','\u{1F6A7}','\u{26FD}','\u{1F68F}','\u{1F6E3}\u{FE0F}','\u{1F6E4}\u{FE0F}','\u{1F682}','\u{1F686}','\u{1F687}','\u{1F68A}','\u{1F69E}'] },
+  { title: '\u{2708}\u{FE0F} \u{7A7A}\u{4E2D} / \u{6D77}\u{4E0A}\u{4EA4}\u{901A}', items: ['\u{2708}\u{FE0F}','\u{1F6EB}','\u{1F6EC}','\u{1F6E9}\u{FE0F}','\u{1F681}','\u{1F680}','\u{1F6F8}','\u{1F6A4}','\u{26F5}','\u{1F6E5}\u{FE0F}','\u{1F6A2}','\u{2693}','\u{1F6F6}','\u{1F6A1}','\u{1F69F}','\u{1F6A0}'] },
+  { title: '\u{1F3D9}\u{FE0F} \u{5EFA}\u{7BC9} / \u{5730}\u{6A19}', items: ['\u{1F3E0}','\u{1F3E1}','\u{1F3E2}','\u{1F3EC}','\u{1F3E8}','\u{1F3E6}','\u{1F3DB}\u{FE0F}','\u{26EA}','\u{1F54C}','\u{1F54D}','\u{1F6D5}','\u{1F5FC}','\u{1F5FD}','\u{1F3F0}','\u{1F3EF}','\u{1F3DF}\u{FE0F}','\u{1F3D7}\u{FE0F}','\u{1F3ED}','\u{1F3E5}','\u{1F3EB}'] },
+  { title: '\u{1F5FA}\u{FE0F} \u{81EA}\u{7136} / \u{5730}\u{7406}', items: ['\u{1F5FA}\u{FE0F}','\u{1F9ED}','\u{26F0}\u{FE0F}','\u{1F3D4}\u{FE0F}','\u{1F30B}','\u{1F5FB}','\u{1F3D5}\u{FE0F}','\u{1F3D6}\u{FE0F}','\u{1F3DD}\u{FE0F}','\u{1F3DC}\u{FE0F}','\u{1F3DE}\u{FE0F}','\u{1F304}','\u{1F305}','\u{1F306}','\u{1F307}','\u{1F309}','\u{1F30A}'] },
+  { title: '\u{26C5} \u{5929}\u{6C23}', items: ['\u{2600}\u{FE0F}','\u{1F324}\u{FE0F}','\u{26C5}','\u{1F325}\u{FE0F}','\u{2601}\u{FE0F}','\u{1F326}\u{FE0F}','\u{1F327}\u{FE0F}','\u{26C8}\u{FE0F}','\u{1F329}\u{FE0F}','\u{1F328}\u{FE0F}','\u{2744}\u{FE0F}','\u{2603}\u{FE0F}','\u{26C4}','\u{1F32C}\u{FE0F}','\u{1F4A8}','\u{1F32B}\u{FE0F}','\u{1F308}','\u{2614}'] },
+  { title: '\u{1F3E8} \u{4F4F}\u{5BBF} / \u{96A8}\u{8EAB}\u{7269}\u{54C1}', items: ['\u{1F3E8}','\u{1F6CF}\u{FE0F}','\u{1F6CC}','\u{1F9F3}','\u{1F511}','\u{1F5DD}\u{FE0F}','\u{1F6BF}','\u{1F6C1}','\u{1F9F4}','\u{1F9FB}','\u{1F4F1}','\u{1F50B}','\u{1F50C}','\u{1FAAB}'] },
+  { title: '\u{1F35C} \u{98F2}\u{98DF}', items: ['\u{1F35C}','\u{1F35A}','\u{1F363}','\u{1F371}','\u{1F95F}','\u{1F362}','\u{1F361}','\u{1F367}','\u{1F368}','\u{1F366}','\u{2615}','\u{1F375}','\u{1F37A}','\u{1F37B}','\u{1F942}','\u{1F377}','\u{1F379}','\u{1F9CB}','\u{1F370}','\u{1F36A}','\u{1F36B}'] },
+  { title: '\u{1F389} \u{6D3B}\u{52D5} / \u{62CD}\u{7167}', items: ['\u{1F4F8}','\u{1F4F7}','\u{1F3A1}','\u{1F3A2}','\u{1F3A0}','\u{1F3CA}','\u{1F6B4}','\u{1F97E}','\u{1F3A3}','\u{1F6CD}\u{FE0F}','\u{1F3AD}','\u{1F3AA}','\u{26F3}','\u{1F3C4}','\u{1F6A3}'] },
+  { title: '\u{2705} \u{5E38}\u{7528}\u{7B26}\u{865F}', items: ['\u{2705}','\u{274C}','\u{2B50}','\u{2764}\u{FE0F}','\u{1F4B0}','\u{1F4B4}','\u{1F4B5}','\u{1F4CD}','\u{1F4CC}','\u{23F0}','\u{1F4C5}','\u{1F4F6}'] },
 ];
 
 let emojiGroups = null;
@@ -1084,10 +1080,7 @@ function renderEmojiGroups(){
       </h3>
       <div class="emoji-grid">
         ${g.items.map((e, ei) => `
-          <div class="emoji-tile-wrap">
-            <button type="button" data-gi="${gi}" data-ei="${ei}" data-emoji="${e}">${e}</button>
-            ${emojiEditMode ? `<button type="button" class="emoji-del-btn" data-action="del-emoji" data-gi="${gi}" data-ei="${ei}">✕</button>` : ''}
-          </div>
+          <button type="button" class="${emojiEditMode ? 'del-mode' : ''}" data-gi="${gi}" data-ei="${ei}" data-emoji="${e}">${e}</button>
         `).join('')}
       </div>
       ${emojiEditMode ? `
@@ -1119,15 +1112,6 @@ document.getElementById('emojiGroups').addEventListener('click', async (ev) => {
     await saveEmojiGroups();
     return;
   }
-  const delEmojiBtn = ev.target.closest('button[data-action="del-emoji"]');
-  if (delEmojiBtn){
-    const gi = parseInt(delEmojiBtn.dataset.gi);
-    const ei = parseInt(delEmojiBtn.dataset.ei);
-    emojiGroups[gi].items.splice(ei, 1);
-    renderEmojiGroups();
-    await saveEmojiGroups();
-    return;
-  }
   const addBtn = ev.target.closest('button.add-emoji-btn');
   if (addBtn){
     const gi = parseInt(addBtn.dataset.gi);
@@ -1141,7 +1125,15 @@ document.getElementById('emojiGroups').addEventListener('click', async (ev) => {
   }
   const emojiBtn = ev.target.closest('button[data-emoji]');
   if (emojiBtn){
-    if (emojiEditMode) return; // 編輯模式下,刪除用旁邊的 ✕,點 emoji 本身不做事
+    if (emojiEditMode){
+      // 編輯模式下,直接點這個 emoji 方塊就是刪除這一個(方塊會顯示紅色提示)
+      const gi = parseInt(emojiBtn.dataset.gi);
+      const ei = parseInt(emojiBtn.dataset.ei);
+      emojiGroups[gi].items.splice(ei, 1);
+      renderEmojiGroups();
+      await saveEmojiGroups();
+      return;
+    }
     const emoji = emojiBtn.dataset.emoji;
     try{
       await navigator.clipboard.writeText(emoji);
